@@ -24,6 +24,10 @@ A smart, token-aware CLI for aggregating and optimizing codebases for LLM contex
     
 -   **✅ Safe & Configurable:** Handles binary files, SVGs, and lets you set a max file size with `--max-file-kb`.
     
+-   **📁 Multiple Paths:** Process multiple files and directories in a single command.
+    
+-   **💬 Comment Control:** Strip comments by default to save tokens, or keep them with `--keep-comments`.
+    
 
 ## Installation
 
@@ -72,16 +76,28 @@ Here are some common examples:
 
 ```bash
     npx src-context --ignore "**/*.test.ts" --clip
-```    
+```
+
+**6\. Process multiple specific directories:**
+
+```bash
+    npx src-context src tests --clip
+```
+
+**7\. Keep comments in the output (comments are stripped by default):**
+
+```bash
+    npx src-context --keep-comments --clip
+```
 
 ## Commands & Options
 ```bash
-    Usage: src-context [inputPath] [options]
+    Usage: src-context [paths...] [options]
     
     A CLI tool for processing and analyzing code context
     
     Arguments:
-      inputPath              Input path to process (default: ".")
+      paths...               Input paths (files or directories) to process (default: ".")
     
     Options:
       -V, --version          output the version number
@@ -91,11 +107,12 @@ Here are some common examples:
       --ignore-file <name>   Specify custom ignore file name (default: ".contextignore")
       --show-tokens          Trigger the getFileStats function
       --keep-whitespace      Disables whitespace removal
+      --keep-comments        Keep comments in the output (comments are stripped by default)
       --token-budget <number> Stop processing when total tokens exceed this budget
       --watch                For the watch mode
       --max-file-kb <number> Maximum file size in KB to process (default: 1024)
       -h, --help             display help for command
-```    
+```
 
 ## Configuration
 
