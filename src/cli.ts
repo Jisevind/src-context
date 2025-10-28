@@ -28,6 +28,7 @@ program
   .option('--ignore-file <name>', 'Specify custom ignore file name', '.contextignore')
   .option('--show-tokens', 'Trigger the getFileStats function')
   .option('--keep-whitespace', 'Disables whitespace removal')
+  .option('--keep-comments', 'Keep comments in the output (comments are stripped by default)')
   .option('--token-budget <number>', 'Stop processing when total tokens exceed this budget')
   .option('--watch', 'For the watch mode')
   .option('--max-file-kb <number>', 'Maximum file size in KB to process (default: 1024)');
@@ -41,6 +42,7 @@ program.action(async (inputPath: string, options: any) => {
       cliIgnores: options.ignore || [],
       customIgnoreFile: options.ignoreFile || '.contextignore',
       removeWhitespace: !options.keepWhitespace,
+      keepComments: options.keepComments || false,
       tokenBudget: options.tokenBudget ? parseInt(options.tokenBudget, 10) : undefined,
       maxFileKb: options.maxFileKb ? parseInt(options.maxFileKb, 10) : undefined
     };

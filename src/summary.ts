@@ -37,7 +37,7 @@ export function generateSummaryReport(stats: BuildStats): string {
   // Build the report
   const report = [
     '┌──────────────────────────────┐',
-    '│     src-context REPORT    │',
+    '│     src-context REPORT       │',
     '└──────────────────────────────┘',
     '',
     '📊 AGGREGATION SUMMARY',

@@ -11,6 +11,7 @@ export interface ContextEngineOptions {
   cliIgnores: string[];
   customIgnoreFile: string;
   removeWhitespace: boolean;
+  keepComments?: boolean;
   minifyFile?: string | undefined;
   tokenBudget?: number | undefined;
   onBinaryFile?: (path: string) => string;
@@ -33,7 +34,7 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
   );
 
   // Process the gathered files
-  const { processedFiles, stats } = await processFiles(files, options.removeWhitespace, options.onBinaryFile, options.onMinifyFile, files.stats, options.maxFileKb ?? 1024);
+  const { processedFiles, stats } = await processFiles(files, options.removeWhitespace, options.onBinaryFile, options.onMinifyFile, files.stats, options.maxFileKb ?? 1024, !options.keepComments);
 
   // If token budget is specified, apply budget filtering
   if (options.tokenBudget !== undefined) {
@@ -80,7 +81,7 @@ export async function getFileStats(options: ContextEngineOptions): Promise<{ fil
   );
 
   // Process the gathered files
-  const { processedFiles, stats } = await processFiles(files, options.removeWhitespace, options.onBinaryFile, options.onMinifyFile, files.stats, options.maxFileKb ?? 1024);
+  const { processedFiles, stats } = await processFiles(files, options.removeWhitespace, options.onBinaryFile, options.onMinifyFile, files.stats, options.maxFileKb ?? 1024, !options.keepComments);
 
   // Create array of file statistics
   const fileStats = processedFiles.map((file: { path: string; tokenCount: number }) => ({

@@ -4,8 +4,6 @@
 
 import { glob } from 'glob';
 import { encode } from 'gpt-tokenizer';
-import chokidar from 'chokidar';
-import clipboard from 'clipboardy';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { stat } from 'fs/promises';
@@ -13,6 +11,24 @@ import { isBinaryFile } from 'isbinaryfile';
 
 // Import ignore with proper typing
 import ignore from 'ignore';
+
+// Dynamic import for strip-comments since it might be CommonJS and lacks TypeScript types
+let stripComments: any;
+
+// Initialize strip-comments asynchronously
+async function initializeStripComments() {
+  if (!stripComments) {
+    try {
+      // @ts-ignore - strip-comments lacks TypeScript declarations
+      const module = await import('strip-comments');
+      stripComments = module.default || module;
+    } catch (error) {
+      console.warn('Warning: Could not load strip-comments module');
+      stripComments = null;
+    }
+  }
+  return stripComments;
+}
 
 // Import types
 import { BuildStats } from './types.js';
@@ -241,7 +257,8 @@ export async function processFiles(
   onBinaryFile?: (path: string) => string,
   onMinifyFile?: (path: string) => string,
   inputStats?: Partial<BuildStats>,
-  maxFileSizeKB?: number
+  maxFileSizeKB?: number,
+  stripFileComments: boolean = true
 ): Promise<{ processedFiles: Array<{ path: string, content: string, tokenCount: number }>, stats: Partial<BuildStats> }> {
   const results: Array<{ path: string, content: string, tokenCount: number }> = [];
   
@@ -302,15 +319,36 @@ export async function processFiles(
         // Read file content
         const fileContent = await readFile(filePath, 'utf-8');
         
-        // Process content based on whitespace removal flag
+        let processedContent = fileContent; // Start with original content
+
+        // Strip comments if the flag is true (which will be the default)
+        if (stripFileComments) {
+          try {
+            // Initialize strip-comments module
+            const stripCommentsModule = await initializeStripComments();
+            if (stripCommentsModule) {
+              // strip-comments might throw errors on certain syntaxes
+              processedContent = stripCommentsModule(processedContent);
+            } else {
+              // If module couldn't be loaded, keep original content
+              processedContent = fileContent;
+            }
+          } catch (stripError) {
+            console.warn(`Warning: Could not strip comments from ${filePath}: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
+            // Keep original content if stripping fails
+            processedContent = fileContent;
+          }
+        }
+
+        // Now, process whitespace on the (potentially) comment-stripped content
         if (removeWhitespace && !isWhitespaceSensitive(filePath)) {
-          content = removeExtraWhitespace(fileContent);
+          content = removeExtraWhitespace(processedContent); // Use processedContent here
         } else {
-          content = fileContent;
+          content = processedContent; // Use processedContent here
         }
         
-        // Count tokens
-        tokenCount = encode(content).length;
+        // Count tokens based on the final content
+        tokenCount = encode(content).length; // Use final 'content' variable
       }
       
       // Format content
