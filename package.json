@@ -1,0 +1,37 @@
+{
+  "name": "src-context",
+  "version": "0.1.0",
+  "description": "A CLI tool for processing and analyzing code context",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "src-context": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/cli.js",
+    "dev": "ts-node src/cli.ts"
+  },
+  "keywords": [
+    "cli",
+    "context",
+    "code-analysis",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "clipboardy": "^4.0.0",
+    "commander": "^11.1.0",
+    "glob": "^10.3.10",
+    "gpt-tokenizer": "^2.1.2",
+    "ignore": "^5.3.1",
+    "isbinaryfile": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
