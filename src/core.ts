@@ -70,7 +70,7 @@ export const defaultIgnores = [
 ];
 
 export async function gatherFiles(
-  inputPath: string,
+  inputPaths: string[],
   cliIgnorePatterns: string[] = [],
   customIgnoreFileName: string = '.contextignore',
   minifyFileName: string = '.contextminify'
@@ -101,10 +101,15 @@ export async function gatherFiles(
   // Add default ignores
   ig.add(defaultIgnores);
 
-  // Try to load custom ignore file
+  // Ensure we have at least one valid path
+  if (inputPaths.length === 0) {
+    inputPaths.push('.');
+  }
+  
+  // Try to load custom ignore file from current working directory
   let customPatterns: string[] = [];
   try {
-    const customIgnorePath = join(inputPath, customIgnoreFileName);
+    const customIgnorePath = join(process.cwd(), customIgnoreFileName);
     const customIgnoreContent = await readFile(customIgnorePath, 'utf-8');
     customPatterns = customIgnoreContent
       .split('\n')
@@ -118,9 +123,9 @@ export async function gatherFiles(
     // Custom ignore file not found or couldn't be read - continue without it
   }
 
-  // Try to load minify file
+  // Try to load minify file from current working directory
   try {
-    const minifyPath = join(inputPath, minifyFileName);
+    const minifyPath = join(process.cwd(), minifyFileName);
     const minifyContent = await readFile(minifyPath, 'utf-8');
     const minifyPatterns = minifyContent
       .split('\n')
@@ -139,12 +144,25 @@ export async function gatherFiles(
     ig.add(cliIgnorePatterns);
   }
 
-  // Get all files recursively using glob
-  const allFiles = await glob('**/*', {
-    cwd: inputPath,
-    dot: true,
-    nodir: true,
-  });
+  // Get all files from all input paths
+  let allFiles: string[] = [];
+  
+  for (const inputPath of inputPaths) {
+    try {
+      const files = await glob('**/*', {
+        cwd: inputPath,
+        dot: true,
+        nodir: true,
+      });
+      
+      // Use relative paths from the current working directory
+      const relativeFiles = files.map(file => join(inputPath, file));
+      allFiles = allFiles.concat(relativeFiles);
+    } catch (error) {
+      console.warn(`Warning: Could not process path ${inputPath}: ${error instanceof Error ? error.message : String(error)}`);
+      // Continue with other paths
+    }
+  }
 
   // Update total files found
   stats.totalFilesFound = allFiles.length;

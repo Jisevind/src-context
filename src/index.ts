@@ -7,7 +7,7 @@ import { gatherFiles, processFiles, defaultIgnores } from './core.js';
 import { BuildStats } from './types.js';
 
 export interface ContextEngineOptions {
-  inputPath: string;
+  inputPaths: string[];
   cliIgnores: string[];
   customIgnoreFile: string;
   removeWhitespace: boolean;
@@ -25,9 +25,12 @@ export interface ContextEngineOptions {
  * @returns Promise resolving to object with final content and build stats
  */
 export async function generateContext(options: ContextEngineOptions): Promise<{ finalContent: string, stats: BuildStats }> {
+  // Use inputPaths from options, default to current directory if empty
+  const inputPaths = options.inputPaths.length > 0 ? options.inputPaths : ['.'];
+  
   // Gather files based on the provided options
   const files = await gatherFiles(
-    options.inputPath,
+    inputPaths,
     options.cliIgnores,
     options.customIgnoreFile,
     options.minifyFile || '.contextminify'
@@ -72,9 +75,12 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
  * @returns Promise resolving to object with file statistics and build stats
  */
 export async function getFileStats(options: ContextEngineOptions): Promise<{ files: Array<{ path: string; tokenCount: number }>, stats: BuildStats }> {
+  // Use inputPaths from options, default to current directory if empty
+  const inputPaths = options.inputPaths.length > 0 ? options.inputPaths : ['.'];
+  
   // Gather files based on the provided options
   const files = await gatherFiles(
-    options.inputPath,
+    inputPaths,
     options.cliIgnores,
     options.customIgnoreFile,
     options.minifyFile || '.contextminify'

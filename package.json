@@ -10,7 +10,9 @@
   "scripts": {
     "build": "tsc",
     "start": "npm run build && node dist/cli.js",
-    "dev": "ts-node src/cli.ts"
+    "dev": "ts-node src/cli.ts",
+    "test:multiple-paths": "npm run build && node test-multiple-paths.js",
+    "test:unit": "npm run build && node test/unit/multiple-paths.test.js"
   },
   "keywords": [
     "cli",

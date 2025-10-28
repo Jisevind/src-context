@@ -19,7 +19,7 @@ program
   .name('src-context')
   .description('A CLI tool for processing and analyzing code context')
   .version('1.0.0')
-  .argument('[inputPath]', 'Input path to process', '.')
+  .argument('[paths...]', 'Input paths (files or directories) to process')
   .option('-o, --output <file>', 'Output to a file')
   .option('--clip', 'Copy output to clipboard')
   .option('--ignore <pattern>', 'Collect multiple patterns into an array', (value, previous: string[]) => {
@@ -34,11 +34,11 @@ program
   .option('--max-file-kb <number>', 'Maximum file size in KB to process (default: 1024)');
 
 // Implement the main action
-program.action(async (inputPath: string, options: any) => {
+program.action(async (paths: string[], options: any) => {
   try {
     // Prepare options for the library functions
     const contextOptions = {
-      inputPath: inputPath || '.',
+      inputPaths: paths && paths.length > 0 ? paths : ['.'], // Use 'inputPaths' (plural)
       cliIgnores: options.ignore || [],
       customIgnoreFile: options.ignoreFile || '.contextignore',
       removeWhitespace: !options.keepWhitespace,
@@ -96,7 +96,7 @@ program.action(async (inputPath: string, options: any) => {
     const debouncedRunBuild = debounce(runBuild, 300);
 
     // Helper function to get ignore patterns for chokidar
-    async function getIgnorePatterns(): Promise<string[]> {
+    async function getIgnorePatterns(basePath: string): Promise<string[]> {
       const patterns: string[] = [...defaultIgnores];
 
       // Add CLI ignore patterns
@@ -111,7 +111,7 @@ program.action(async (inputPath: string, options: any) => {
 
       // Try to load custom ignore file
       try {
-        const customIgnorePath = join(inputPath || '.', options.ignoreFile || '.contextignore');
+        const customIgnorePath = join(basePath, options.ignoreFile || '.contextignore');
         const fs = await import('fs/promises');
         const customIgnoreContent = await fs.readFile(customIgnorePath, 'utf-8');
         const customPatterns = customIgnoreContent
@@ -139,10 +139,11 @@ program.action(async (inputPath: string, options: any) => {
       console.log('\nWatching for file changes...');
       
       // Get ignore patterns for chokidar
-      const ignorePatterns = await getIgnorePatterns();
+      const firstInputPath = (paths && paths.length > 0 ? paths[0] : '.') || '.';
+      const ignorePatterns = await getIgnorePatterns(firstInputPath);
       
       // Set up chokidar watcher with proper ignore patterns
-      const watcher = chokidar.watch(inputPath || '.', {
+      const watcher = chokidar.watch(paths && paths.length > 0 ? paths : ['.'], {
         ignored: ignorePatterns,
         persistent: true,
         ignoreInitial: true,
