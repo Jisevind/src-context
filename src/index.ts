@@ -58,9 +58,19 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
       }
     }
     
+    // Update stats to reflect only budgeted files
+    const updatedStats = { ...stats };
+    updatedStats.filesToInclude = budgetFiles.length;
+    updatedStats.totalTokenCount = totalTokens;
+    updatedStats.totalFileSizeKB = budgetFiles.reduce((sum, file) => sum + (file.content.length / 1024), 0);
+    updatedStats.topTokenConsumers = budgetFiles
+      .sort((a, b) => b.tokenCount - a.tokenCount)
+      .slice(0, 3)
+      .map(file => ({ path: file.path, tokenCount: file.tokenCount }));
+    
     // Join content from files that fit within the budget
     const combinedContent = budgetFiles.map((file: { content: string }) => file.content).join('\n\n');
-    return { finalContent: combinedContent, stats: stats as BuildStats };
+    return { finalContent: combinedContent, stats: updatedStats as BuildStats };
   }
 
   // Join all formatted content strings into one single string
@@ -114,10 +124,15 @@ export async function getFileStats(options: ContextEngineOptions): Promise<{ fil
       }
     }
     
+    // Update stats to reflect only budgeted files
+    const updatedStats = { ...stats };
+    updatedStats.filesToInclude = budgetStats.length;
+    updatedStats.totalTokenCount = totalTokens;
+    
     // Sort the budgeted stats by token count in descending order for consistency with original behavior
     budgetStats.sort((a, b) => b.tokenCount - a.tokenCount);
     
-    return { files: budgetStats, stats: stats as BuildStats };
+    return { files: budgetStats, stats: updatedStats as BuildStats };
   }
 
   // Sort by tokenCount in descending order (most expensive files first)

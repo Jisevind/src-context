@@ -11,8 +11,9 @@
     "build": "tsc",
     "start": "npm run build && node dist/cli.js",
     "dev": "ts-node src/cli.ts",
-    "test:multiple-paths": "npm run build && node test-multiple-paths.js",
-    "test:unit": "npm run build && node test/unit/multiple-paths.test.js"
+    "test:unit": "npm run build && node test/unit/multiple-paths.test.js",
+    "test:clip": "npm run build && node test/unit/clip-feature.test.js",
+    "test:watch": "npm run build && node test/unit/watch-feature.test.js"
   },
   "keywords": [
     "cli",
