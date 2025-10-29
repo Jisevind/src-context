@@ -76,7 +76,6 @@ export async function gatherFiles(
   minifyFileName: string = '.contextminify'
 ): Promise<{ filesToInclude: string[], filesToMinify: string[], stats: Partial<BuildStats> }> {
 
-  // Initialize stats
   const stats: Partial<BuildStats> = {
     totalFilesFound: 0,
     filesToInclude: 0,
@@ -92,21 +91,16 @@ export async function gatherFiles(
     topTokenConsumers: []
   };
 
-  // Initialize ignore instance
   const ig = ignore.default();
-
-  // Initialize minify instance
   const mg = ignore.default();
 
-  // Add default ignores
   ig.add(defaultIgnores);
 
-  // Ensure we have at least one valid path
   if (inputPaths.length === 0) {
     inputPaths.push('.');
   }
-  
-  // Try to load custom ignore file from current working directory
+
+  // --- Ignore File Loading (from CWD) ---
   let customPatterns: string[] = [];
   try {
     const customIgnorePath = join(process.cwd(), customIgnoreFileName);
@@ -115,15 +109,13 @@ export async function gatherFiles(
       .split('\n')
       .map(line => line.trim())
       .filter(line => line && !line.startsWith('#'));
-    
     if (customPatterns.length > 0) {
       ig.add(customPatterns);
     }
   } catch (error) {
-    // Custom ignore file not found or couldn't be read - continue without it
+    // No custom ignore file found, which is fine
   }
 
-  // Try to load minify file from current working directory
   try {
     const minifyPath = join(process.cwd(), minifyFileName);
     const minifyContent = await readFile(minifyPath, 'utf-8');
@@ -131,147 +123,91 @@ export async function gatherFiles(
       .split('\n')
       .map(line => line.trim())
       .filter(line => line && !line.startsWith('#'));
-    
     if (minifyPatterns.length > 0) {
       mg.add(minifyPatterns);
     }
   } catch (error) {
-    // Minify file not found or couldn't be read - continue without it
+    // No minify file found, which is fine
   }
 
-  // Add CLI ignore patterns
   if (cliIgnorePatterns.length > 0) {
     ig.add(cliIgnorePatterns);
   }
 
-  // Get all files from all input paths
-  let allFiles: string[] = [];
-  
+  // --- File/Directory Processing ---
+  const allFilesSet = new Set<string>();
+  const cwd = process.cwd();
+
   for (const inputPath of inputPaths) {
     try {
-      const files = await glob('**/*', {
-        cwd: inputPath,
-        dot: true,
-        nodir: true,
-      });
-      
-      // Use relative paths from the current working directory
-      // If inputPath is relative, keep it as is; if absolute, make it relative to cwd
-      let relativeInputPath = inputPath;
-      if (inputPath.startsWith('/') || /^[A-Za-z]:/.test(inputPath)) {
-        // Absolute path - make it relative to cwd
-        relativeInputPath = inputPath.replace(process.cwd(), '').replace(/^[\/\\]/, '');
+      const absolutePath = join(cwd, inputPath);
+      const pathStats = await stat(absolutePath);
+
+      if (pathStats.isDirectory()) {
+        const files = await glob('**/*', {
+          cwd: absolutePath,
+          dot: true,
+          nodir: true,
+          absolute: false, // Get relative paths from the directory
+        });
+        // Add files relative to the input path
+        files.forEach(file => allFilesSet.add(join(inputPath, file)));
+      } else if (pathStats.isFile()) {
+        // Add the file path as-is (it should already be relative to CWD or absolute)
+        allFilesSet.add(inputPath);
       }
-      
-      const relativeFiles = files.map(file => join(relativeInputPath, file));
-      allFiles = allFiles.concat(relativeFiles);
     } catch (error) {
       console.warn(`Warning: Could not process path ${inputPath}: ${error instanceof Error ? error.message : String(error)}`);
-      // Continue with other paths
     }
   }
 
-  // Update total files found
+  const allFiles = Array.from(allFilesSet);
   stats.totalFilesFound = allFiles.length;
 
-  // Count files ignored by different sources
-  // We need to check each file against each ignore type separately
-  const filesIgnoredByDefault = allFiles.filter(file => {
-    // Extract the relative path from the input path for ignore matching
-    let relativePathForIgnore = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
-      }
-    }
-    
-    const tempIg = ignore.default();
-    tempIg.add(defaultIgnores);
-    return tempIg.ignores(relativePathForIgnore);
-  });
+  // --- Filtering Logic (using paths relative to CWD) ---
+  const filesNotIgnored: string[] = [];
+  const filesToMinify: string[] = [];
 
-  const filesIgnoredByCustom = allFiles.filter(file => {
-    if (customPatterns.length === 0) return false;
-    
-    // Extract the relative path from the input path for ignore matching
-    let relativePathForIgnore = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
-      }
-    }
-    
-    const tempIg = ignore.default();
-    tempIg.add(customPatterns);
-    return tempIg.ignores(relativePathForIgnore);
-  });
+  // Track ignore counts
+  let ignoredByDefault = 0;
+  let ignoredByCustom = 0;
+  let ignoredByCli = 0;
 
-  const filesIgnoredByCli = allFiles.filter(file => {
-    if (cliIgnorePatterns.length === 0) return false;
-    
-    // Extract the relative path from the input path for ignore matching
-    let relativePathForIgnore = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
-      }
-    }
-    
-    const tempIg = ignore.default();
-    tempIg.add(cliIgnorePatterns);
-    return tempIg.ignores(relativePathForIgnore);
-  });
+  const defaultIg = ignore.default().add(defaultIgnores);
+  const customIg = ignore.default().add(customPatterns);
+  const cliIg = ignore.default().add(cliIgnorePatterns);
 
-  stats.filesIgnoredByDefault = filesIgnoredByDefault.length;
-  stats.filesIgnoredByCustom = filesIgnoredByCustom.length;
-  stats.filesIgnoredByCli = filesIgnoredByCli.length;
+  for (const file of allFiles) {
+    const relativePath = file; // Already relative to CWD
 
-  // Filter files using ignore patterns
-  // For ignore patterns, we need to use paths relative to the input path, not the full path
-  const filesNotIgnored = allFiles.filter(file => {
-    // Extract the relative path from the input path for ignore matching
-    let relativePathForIgnore = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
+    if (ig.ignores(relativePath)) {
+      // Check which rule ignored it (for stats)
+      if (defaultIg.ignores(relativePath)) {
+        ignoredByDefault++;
+      } else if (customIg.ignores(relativePath)) {
+        ignoredByCustom++;
+      } else if (cliIg.ignores(relativePath)) {
+        ignoredByCli++;
       }
+      continue; // Skip this file
     }
-    return !ig.ignores(relativePathForIgnore);
-  });
-  stats.filesIgnored = allFiles.length - filesNotIgnored.length;
 
-  // Separate files into include and minify categories
-  const filesToInclude = filesNotIgnored.filter(file => {
-    // Extract the relative path from the input path for minify matching
-    let relativePathForMinify = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForMinify = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
-      }
+    if (mg.ignores(relativePath)) {
+      filesToMinify.push(file);
+    } else {
+      filesNotIgnored.push(file);
     }
-    return !mg.ignores(relativePathForMinify);
-  });
-  const filesToMinify = filesNotIgnored.filter(file => {
-    // Extract the relative path from the input path for minify matching
-    let relativePathForMinify = file;
-    for (const inputPath of inputPaths) {
-      if (file.startsWith(inputPath)) {
-        relativePathForMinify = file.slice(inputPath.length).replace(/^[\/\\]/, '');
-        break;
-      }
-    }
-    return mg.ignores(relativePathForMinify);
-  });
+  }
 
-  stats.filesToInclude = filesToInclude.length;
+  // Update stats
+  stats.filesIgnoredByDefault = ignoredByDefault;
+  stats.filesIgnoredByCustom = ignoredByCustom;
+  stats.filesIgnoredByCli = ignoredByCli;
+  stats.filesIgnored = ignoredByDefault + ignoredByCustom + ignoredByCli;
+  stats.filesToInclude = filesNotIgnored.length;
   stats.filesToMinify = filesToMinify.length;
 
-  return { filesToInclude, filesToMinify, stats };
+  return { filesToInclude: filesNotIgnored, filesToMinify, stats };
 }
 
 /**
