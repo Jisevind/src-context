@@ -90,8 +90,8 @@ export async function gatherFiles(
 
   // --- Ignore File Loading (from CWD) ---
   let customPatterns: string[] = [];
+  const customIgnorePath = join(process.cwd(), customIgnoreFileName);
   try {
-    const customIgnorePath = join(process.cwd(), customIgnoreFileName);
     const customIgnoreContent = await readFile(customIgnorePath, 'utf-8');
     customPatterns = customIgnoreContent
       .split('\n')
@@ -101,11 +101,18 @@ export async function gatherFiles(
       customIg.add(customPatterns);
     }
   } catch (error) {
-    // No custom ignore file found, which is fine
+    // Check if the error is a file-not-found error (expected behavior)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      // No custom ignore file found, which is fine - continue silently
+    } else {
+      // For any other error (permissions, etc.), log a warning
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Warning: Could not read ignore file ${customIgnorePath}: ${errorMessage}`);
+    }
   }
 
+  const minifyPath = join(process.cwd(), minifyFileName);
   try {
-    const minifyPath = join(process.cwd(), minifyFileName);
     const minifyContent = await readFile(minifyPath, 'utf-8');
     const minifyPatterns = minifyContent
       .split('\n')
@@ -115,7 +122,14 @@ export async function gatherFiles(
       mg.add(minifyPatterns);
     }
   } catch (error) {
-    // No minify file found, which is fine
+    // Check if the error is a file-not-found error (expected behavior)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      // No minify file found, which is fine - continue silently
+    } else {
+      // For any other error (permissions, etc.), log a warning
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Warning: Could not read minify file ${minifyPath}: ${errorMessage}`);
+    }
   }
 
   if (cliIgnorePatterns.length > 0) {
