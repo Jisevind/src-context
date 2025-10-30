@@ -94,6 +94,7 @@ __tests__/
 # Output files from src-context tool
 output.md
 *.output.md
+watch-output.txt
 
 # Context-specific files
 .contextignore

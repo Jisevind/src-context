@@ -8,27 +8,10 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { stat } from 'fs/promises';
 import { isBinaryFile } from 'isbinaryfile';
+import { open } from 'fs/promises';
 
 // Import ignore with proper typing
 import ignore from 'ignore';
-
-// Dynamic import for strip-comments since it might be CommonJS and lacks TypeScript types
-let stripComments: any;
-
-// Initialize strip-comments asynchronously
-async function initializeStripComments() {
-  if (!stripComments) {
-    try {
-      // @ts-ignore - strip-comments lacks TypeScript declarations
-      const module = await import('strip-comments');
-      stripComments = module.default || module;
-    } catch (error) {
-      console.warn('Warning: Could not load strip-comments module');
-      stripComments = null;
-    }
-  }
-  return stripComments;
-}
 
 // Import types
 import { BuildStats } from './types.js';
@@ -178,25 +161,54 @@ export async function gatherFiles(
   const cliIg = ignore.default().add(cliIgnorePatterns);
 
   for (const file of allFiles) {
-    const relativePath = file; // Already relative to CWD
-
-    if (ig.ignores(relativePath)) {
-      // Check which rule ignored it (for stats)
-      if (defaultIg.ignores(relativePath)) {
-        ignoredByDefault++;
-      } else if (customIg.ignores(relativePath)) {
-        ignoredByCustom++;
-      } else if (cliIg.ignores(relativePath)) {
-        ignoredByCli++;
+    // Extract the relative path from the input path for ignore matching
+    let relativePathForIgnore = file;
+    for (const inputPath of inputPaths) {
+      if (file.startsWith(inputPath)) {
+        relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
+        break;
       }
-      continue; // Skip this file
+    }
+    
+    // Ensure we don't pass empty paths to the ignore library
+    if (!relativePathForIgnore) {
+      relativePathForIgnore = file;
+    }
+    
+    // Normalize path to use POSIX-style forward slashes for ignore library
+    relativePathForIgnore = relativePathForIgnore.replace(/\\/g, '/');
+
+    // Check minification first - minification rules take precedence over ignore rules
+    if (mg.ignores(relativePathForIgnore)) {
+      filesToMinify.push(file);
+      continue; // File is minified, no need to check ignore rules
     }
 
-    if (mg.ignores(relativePath)) {
-      filesToMinify.push(file);
-    } else {
-      filesNotIgnored.push(file);
+    if (ig.ignores(relativePathForIgnore)) {
+      // Check in order of precedence: CLI > Custom > Default
+      if (cliIg.ignores(relativePathForIgnore)) {
+        ignoredByCli++;
+      } else if (customIg.ignores(relativePathForIgnore)) {
+        ignoredByCustom++;
+      } else if (defaultIg.ignores(relativePathForIgnore)) {
+        ignoredByDefault++;
+      } else {
+        // Fallback for complex interactions (e.g., negations)
+        // If ig ignored it, but no individual checker did,
+        // attribute it to the highest precedence list that has patterns.
+        if (cliIgnorePatterns.length > 0) {
+          ignoredByCli++;
+        } else if (customPatterns.length > 0) {
+          ignoredByCustom++;
+        } else {
+          ignoredByDefault++;
+        }
+      }
+      continue;
     }
+
+    // File is not minified and not ignored, include it normally
+    filesNotIgnored.push(file);
   }
 
   // Update stats
@@ -264,6 +276,56 @@ function removeExtraWhitespace(content: string): string {
 }
 
 /**
+ * Optimized binary file detection that only reads the first few KB
+ * This is much faster than isBinaryFile for large files
+ * @param filePath - Path to the file
+ * @param sampleSize - Number of bytes to sample (default: 8192)
+ * @returns Promise resolving to boolean indicating if file is binary
+ */
+async function isBinaryFileOptimized(filePath: string, sampleSize: number = 8192): Promise<boolean> {
+  try {
+    const fileHandle = await open(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(sampleSize);
+      const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
+      
+      // Check if we read any data
+      if (bytesRead === 0) {
+        return false;
+      }
+      
+      // Only check the bytes we actually read
+      const sample = buffer.slice(0, bytesRead);
+      
+      // Simple heuristic: check for null bytes or high percentage of non-printable characters
+      let nullBytes = 0;
+      let nonPrintable = 0;
+      
+      for (let i = 0; i < sample.length; i++) {
+        const byte = sample[i]!;
+        if (byte === 0) {
+          nullBytes++;
+        } else if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
+          // Non-printable characters (excluding tab, LF, CR)
+          nonPrintable++;
+        }
+      }
+      
+      // Consider binary if more than 10% null bytes or more than 30% non-printable characters
+      const nullThreshold = sample.length * 0.1;
+      const nonPrintableThreshold = sample.length * 0.3;
+      
+      return nullBytes > nullThreshold || nonPrintable > nonPrintableThreshold;
+    } finally {
+      await fileHandle.close();
+    }
+  } catch (error) {
+    // If we can't read the file, assume it's not binary (let the main logic handle errors)
+    return false;
+  }
+}
+
+/**
  * Process files and prepare their content for LLM
  * @param files - Object containing filesToInclude and filesToMinify arrays
  * @param removeWhitespace - Whether to remove extra whitespace from non-whitespace-sensitive files
@@ -271,6 +333,7 @@ function removeExtraWhitespace(content: string): string {
  * @param onMinifyFile - Optional callback for minified file content
  * @param inputStats - Stats from gatherFiles function
  * @param maxFileSizeKB - Maximum file size in KB to process (default: 1024KB)
+ * @param stripFileComments - Whether to strip comments from files
  * @returns Promise resolving to object with processed files and merged stats
  */
 export async function processFiles(
@@ -306,8 +369,9 @@ export async function processFiles(
       let content: string;
       let tokenCount: number;
       
-      // Check file size first
+      // Check file size first - this is the critical optimization
       let fileSizeKB = 0;
+      let shouldSkipDueToSize = false;
       try {
         const fileStats = await stat(filePath);
         fileSizeKB = fileStats.size / 1024;
@@ -317,7 +381,7 @@ export async function processFiles(
         if (fileSizeKB > maxSizeKB) {
           stats.skippedLargeFiles = (stats.skippedLargeFiles || 0) + 1;
           console.warn(`Warning: Skipping large file ${filePath} (${fileSizeKB.toFixed(2)}KB > ${maxSizeKB}KB)`);
-          continue;
+          shouldSkipDueToSize = true;
         }
       } catch (error) {
         // If we can't stat the file, continue with processing
@@ -326,9 +390,23 @@ export async function processFiles(
       // Check if file is binary or SVG
       const ext = filePath.split('.').pop()?.toLowerCase() || '';
       const isSvg = ext === 'svg';
-      const isBinary = await isBinaryFile(filePath);
+      
+      // Use optimized binary detection for large files, regular detection for small files
+      let isBinary = false;
+      if (!shouldSkipDueToSize) {
+        // For files larger than 100KB, use optimized detection that only reads first 8KB
+        // For smaller files, use regular detection for better accuracy
+        if (fileSizeKB > 100) {
+          isBinary = await isBinaryFileOptimized(filePath);
+        } else {
+          isBinary = await isBinaryFile(filePath);
+        }
+      }
 
-      if (isBinary || isSvg) {
+      if (shouldSkipDueToSize) {
+        // Skip this file entirely - don't process it further
+        continue;
+      } else if (isBinary || isSvg) {
         stats.binaryAndSvgFiles = (stats.binaryAndSvgFiles || 0) + 1;
         // Use custom callback if provided, otherwise use default placeholder
         if (onBinaryFile) {
@@ -338,44 +416,59 @@ export async function processFiles(
         }
         tokenCount = encode(content).length;
       } else {
-        // Read file content
-        const fileContent = await readFile(filePath, 'utf-8');
-        
-        let processedContent = fileContent; // Start with original content
-
-        // Strip comments if the flag is true (which will be the default)
-        // but only for non-whitespace-sensitive files
-        if (stripFileComments && !isWhitespaceSensitive(filePath)) {
+        // For very large text files (>100KB), use a more efficient approach
+        // Sample the first portion and add a note about the file size
+        if (fileSizeKB > 100) {
+          // Read only first 50KB for large text files to avoid tokenization bottleneck
+          const sampleSize = 50 * 1024;
+          const fileHandle = await open(filePath, 'r');
           try {
-            // Initialize strip-comments module
-            const stripCommentsModule = await initializeStripComments();
-            if (stripCommentsModule) {
-              // strip-comments might throw errors on certain syntaxes
-              // Include options to strip HTML comments as well
-              processedContent = stripCommentsModule(processedContent, {
-                stripHtmlComments: true,
-                preserveNewlines: true
-              });
-            } else {
-              // If module couldn't be loaded, keep original content
-              processedContent = fileContent;
-            }
-          } catch (stripError) {
-            console.warn(`Warning: Could not strip comments from ${filePath}: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
-            // Keep original content if stripping fails
-            processedContent = fileContent;
+            const buffer = Buffer.alloc(sampleSize);
+            const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
+            const sampleContent = buffer.slice(0, bytesRead).toString('utf-8');
+            
+            // Create content with sample and size note
+            content = `${sampleContent}\n\n[Note: Large file (${fileSizeKB.toFixed(1)}KB) - showing first ${(bytesRead/1024).toFixed(1)}KB]`;
+            
+            // Estimate token count based on sample (much faster than tokenizing full content)
+            const sampleTokenCount = encode(sampleContent).length;
+            tokenCount = Math.round(sampleTokenCount * (fileSizeKB / (bytesRead/1024)));
+          } finally {
+            await fileHandle.close();
           }
-        }
-
-        // Now, process whitespace on the (potentially) comment-stripped content
-        if (removeWhitespace && !isWhitespaceSensitive(filePath)) {
-          content = removeExtraWhitespace(processedContent); // Use processedContent here
         } else {
-          content = processedContent; // Use processedContent here
+          // Read file content for smaller files
+          const fileContent = await readFile(filePath, 'utf-8');
+          
+          let processedContent = fileContent; // Start with original content
+
+          // Strip comments if the flag is true (which will be the default)
+          // but only for non-whitespace-sensitive files
+          if (stripFileComments && !isWhitespaceSensitive(filePath)) {
+            try {
+              // Use dynamic import directly
+              // @ts-ignore - strip-comments lacks TypeScript declarations
+              const { default: strip } = await import('strip-comments');
+              processedContent = strip(processedContent, {
+                stripHtmlComments: true, // This option also strips HTML comments
+                preserveNewlines: true  // Keep blank lines from removed block comments
+              });
+            } catch (stripError) {
+              console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
+              processedContent = fileContent; // Fallback to original content
+            }
+          }
+
+          // Now, process whitespace on the (potentially) comment-stripped content
+          if (removeWhitespace && !isWhitespaceSensitive(filePath)) {
+            content = removeExtraWhitespace(processedContent); // Use processedContent here
+          } else {
+            content = processedContent; // Use processedContent here
+          }
+          
+          // Count tokens based on the final content
+          tokenCount = encode(content).length; // Use final 'content' variable
         }
-        
-        // Count tokens based on the final content
-        tokenCount = encode(content).length; // Use final 'content' variable
       }
       
       // Format content

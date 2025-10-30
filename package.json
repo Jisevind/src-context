@@ -11,9 +11,8 @@
     "build": "tsc",
     "start": "npm run build && node dist/cli.js",
     "dev": "ts-node src/cli.ts",
-    "test:unit": "npm run build && node test/unit/multiple-paths.test.js",
-    "test:clip": "npm run build && node test/unit/clip-feature.test.js",
-    "test:watch": "npm run build && node test/unit/watch-feature.test.js"
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest"
   },
   "keywords": [
     "cli",
@@ -24,6 +23,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.52.5",
     "chokidar": "^3.5.3",
     "clipboardy": "^4.0.0",
     "commander": "^11.1.0",
@@ -36,6 +36,7 @@
   "devDependencies": {
     "@types/node": "^20.10.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.5"
   }
 }
