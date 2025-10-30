@@ -3,12 +3,8 @@
  */
 
 import { glob } from 'glob';
-import { encode } from 'gpt-tokenizer';
-import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { stat } from 'fs/promises';
-import { isBinaryFile } from 'isbinaryfile';
-import { open } from 'fs/promises';
 
 // Import ignore with proper typing
 import ignore from 'ignore';
@@ -17,10 +13,16 @@ import ignore from 'ignore';
 import { BuildStats } from './types.js';
 import { loadPatternsFromFile } from './utils.js';
 
-// Constants for binary file detection
-const DEFAULT_SAMPLE_SIZE = 8192;
-const NULL_BYTE_THRESHOLD_RATIO = 0.1;
-const NON_PRINTABLE_THRESHOLD_RATIO = 0.3;
+// Import helper functions from fileProcessors
+import {
+  getFileStats,
+  isBinaryOrSvgFile,
+  handleBinaryOrSvgFile,
+  readAndProcessTextFile,
+  processMinifiedFile,
+  updateStats,
+  handleFileError
+} from './fileProcessors.js';
 
 /**
  * Gather files from input path with ignore pattern filtering
@@ -232,97 +234,12 @@ export function formatFileContent(path: string, content: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
   
   // If content is a placeholder for binary/SVG files
-  if (content.startsWith('[Content of binary file:')) {
+  if (content.startsWith('[Content of binary file:') || content.startsWith('[Content of SVG file:')) {
     return `# ${path}\n\n${content}`;
   }
   
   // Format as Markdown code block with language hint
   return `# ${path}\n\n\`\`\`${ext}\n${content}\n\`\`\``;
-}
-
-
-/**
- * Check if a file is whitespace-sensitive
- * @param path - The file path
- * @returns true if file is known to be whitespace-sensitive
- */
-function isWhitespaceSensitive(path: string): boolean {
-  const whitespaceSensitiveExtensions = [
-    'py',   // Python
-    'yaml', // YAML
-    'yml',  // YAML
-    'haml', // HAML
-    'pug'   // Pug
-  ];
-  
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  return whitespaceSensitiveExtensions.includes(ext);
-}
-
-/**
- * Remove extra whitespace from content
- * @param content - The file content
- * @returns Content with extra whitespace removed
- */
-function removeExtraWhitespace(content: string): string {
-  // Remove multiple newlines (keep max 2 consecutive newlines)
-  content = content.replace(/\n{3,}/g, '\n\n');
-  
-  // Remove leading/trailing whitespace from each line
-  content = content.split('\n').map(line => line.trimEnd()).join('\n');
-  
-  // Remove leading/trailing whitespace from the entire content
-  return content.trim();
-}
-
-/**
- * Optimized binary file detection that only reads the first few KB
- * This is much faster than isBinaryFile for large files
- * @param filePath - Path to the file
- * @param sampleSize - Number of bytes to sample (default: DEFAULT_SAMPLE_SIZE)
- * @returns Promise resolving to boolean indicating if file is binary
- */
-async function isBinaryFileOptimized(filePath: string, sampleSize: number = DEFAULT_SAMPLE_SIZE): Promise<boolean> {
-  try {
-    const fileHandle = await open(filePath, 'r');
-    try {
-      const buffer = Buffer.alloc(sampleSize);
-      const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
-      
-      // Check if we read any data
-      if (bytesRead === 0) {
-        return false;
-      }
-      
-      // Only check the bytes we actually read
-      const sample = buffer.slice(0, bytesRead);
-      
-      // Simple heuristic: check for null bytes or high percentage of non-printable characters
-      let nullBytes = 0;
-      let nonPrintable = 0;
-      
-      for (let i = 0; i < sample.length; i++) {
-        const byte = sample[i]!;
-        if (byte === 0) {
-          nullBytes++;
-        } else if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
-          // Non-printable characters (excluding tab, LF, CR)
-          nonPrintable++;
-        }
-      }
-      
-      // Consider binary if more than 10% null bytes or more than 30% non-printable characters
-      const nullThreshold = sample.length * NULL_BYTE_THRESHOLD_RATIO;
-      const nonPrintableThreshold = sample.length * NON_PRINTABLE_THRESHOLD_RATIO;
-      
-      return nullBytes > nullThreshold || nonPrintable > nonPrintableThreshold;
-    } finally {
-      await fileHandle.close();
-    }
-  } catch (error) {
-    // If we can't read the file, assume it's not binary (let the main logic handle errors)
-    return false;
-  }
 }
 
 /**
@@ -366,201 +283,46 @@ export async function processFiles(
   // Process files to include (normal processing)
   for (const filePath of files.filesToInclude) {
     try {
-      let content: string;
-      let tokenCount: number;
+      const fileStats = await getFileStats(filePath, maxFileSizeKB);
       
-      // Check file size first - this is the critical optimization
-      let fileSizeKB = 0;
-      let shouldSkipDueToSize = false;
-      try {
-        const fileStats = await stat(filePath);
-        fileSizeKB = fileStats.size / 1024;
-        
-        // Skip files larger than maxFileSizeKB (default to 1024 if not provided)
-        const maxSizeKB = maxFileSizeKB ?? 1024;
-        if (fileSizeKB > maxSizeKB) {
-          stats.skippedLargeFiles = (stats.skippedLargeFiles || 0) + 1;
-          console.warn(`Warning: Skipping large file ${filePath} (${fileSizeKB.toFixed(2)}KB > ${maxSizeKB}KB)`);
-          shouldSkipDueToSize = true;
-        }
-      } catch (error) {
-        // If we can't stat the file, continue with processing
-      }
-      
-      // Check if file is binary or SVG
-      const ext = filePath.split('.').pop()?.toLowerCase() || '';
-      const isSvg = ext === 'svg';
-      
-      // Use optimized binary detection for large files, regular detection for small files
-      let isBinary = false;
-      if (!shouldSkipDueToSize) {
-        // For files larger than 100KB, use optimized detection that only reads first 8KB
-        // For smaller files, use regular detection for better accuracy
-        if (fileSizeKB > 100) {
-          isBinary = await isBinaryFileOptimized(filePath);
-        } else {
-          isBinary = await isBinaryFile(filePath);
-        }
-      }
-
-      if (shouldSkipDueToSize) {
-        // Skip this file entirely - don't process it further
+      if (fileStats.shouldSkip) {
+        stats.skippedLargeFiles = (stats.skippedLargeFiles || 0) + 1;
         continue;
-      } else if (isBinary || isSvg) {
-        stats.binaryAndSvgFiles = (stats.binaryAndSvgFiles || 0) + 1;
-        // Use custom callback if provided, otherwise use default placeholder
-        if (onBinaryFile) {
-          content = onBinaryFile(filePath);
-        } else {
-          content = isSvg ? `[Content of SVG file: ${filePath}]` : `[Content of binary file: ${filePath}]`;
-        }
-        tokenCount = encode(content).length;
-      } else {
-        // For very large text files (>100KB), use a more efficient approach
-        // Sample the first portion and add a note about the file size
-        if (fileSizeKB > 100) {
-          // Read only first 50KB for large text files to avoid tokenization bottleneck
-          const sampleSize = 50 * 1024;
-          const fileHandle = await open(filePath, 'r');
-          try {
-            const buffer = Buffer.alloc(sampleSize);
-            const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
-            const sampleContent = buffer.slice(0, bytesRead).toString('utf-8');
-            
-            // Create content with sample and size note
-            content = `${sampleContent}\n\n[Note: Large file (${fileSizeKB.toFixed(1)}KB) - showing first ${(bytesRead/1024).toFixed(1)}KB]`;
-            
-            // Estimate token count based on sample (much faster than tokenizing full content)
-            const sampleTokenCount = encode(sampleContent).length;
-            tokenCount = Math.round(sampleTokenCount * (fileSizeKB / (bytesRead/1024)));
-          } finally {
-            await fileHandle.close();
-          }
-        } else {
-          // Read file content for smaller files
-          const fileContent = await readFile(filePath, 'utf-8');
-          
-          let processedContent = fileContent; // Start with original content
-
-          // Strip comments if the flag is true (which will be the default)
-          // but only for non-whitespace-sensitive files
-          if (stripFileComments && !isWhitespaceSensitive(filePath)) {
-            try {
-              // Use dynamic import directly
-              // @ts-ignore - strip-comments lacks TypeScript declarations
-              const { default: strip } = await import('strip-comments');
-              processedContent = strip(processedContent, {
-                stripHtmlComments: true, // This option also strips HTML comments
-                preserveNewlines: true  // Keep blank lines from removed block comments
-              });
-            } catch (stripError) {
-              console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
-              processedContent = fileContent; // Fallback to original content
-            }
-          }
-
-          // Now, process whitespace on the (potentially) comment-stripped content
-          if (removeWhitespace && !isWhitespaceSensitive(filePath)) {
-            content = removeExtraWhitespace(processedContent); // Use processedContent here
-          } else {
-            content = processedContent; // Use processedContent here
-          }
-          
-          // Count tokens based on the final content
-          tokenCount = encode(content).length; // Use final 'content' variable
-        }
       }
       
-      // Format content
-      const formattedContent = formatFileContent(filePath, content);
+      const { isBinary, isSvg } = await isBinaryOrSvgFile(filePath, fileStats.sizeKB);
       
-      results.push({
-        path: filePath,
-        content: formattedContent,
-        tokenCount
-      });
+      let result;
+      if (isBinary || isSvg) {
+        result = await handleBinaryOrSvgFile(filePath, isSvg, onBinaryFile);
+        updateStats(stats, result, true);
+      } else {
+        result = await readAndProcessTextFile(filePath, {
+          removeWhitespace,
+          stripFileComments,
+          maxFileSizeKB
+        });
+        updateStats(stats, result, false);
+      }
       
-      // Update total token count and file size
-      stats.totalTokenCount = (stats.totalTokenCount || 0) + tokenCount;
-      stats.totalFileSizeKB = (stats.totalFileSizeKB || 0) + (content.length / 1024);
-      
+      results.push(result);
     } catch (error) {
-      // Handle file reading errors gracefully
-      console.warn(`Warning: Could not process file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
-      
-      // Use placeholder for files that couldn't be read
-      const errorContent = `[Error: Could not read file ${filePath}. ${error instanceof Error ? error.message : String(error)}]`;
-      const tokenCount = encode(errorContent).length;
-      const formattedContent = formatFileContent(filePath, errorContent);
-      
-      results.push({
-        path: filePath,
-        content: formattedContent,
-        tokenCount
-      });
-      
-      // Update total token count and file size
-      stats.totalTokenCount = (stats.totalTokenCount || 0) + tokenCount;
-      stats.totalFileSizeKB = (stats.totalFileSizeKB || 0) + (errorContent.length / 1024);
+      const errorResult = await handleFileError(filePath, error);
+      results.push(errorResult);
+      updateStats(stats, errorResult, false);
     }
   }
   
   // Process files to minify (create placeholders)
   for (const filePath of files.filesToMinify) {
     try {
-      // Create placeholder string for minified content
-      let placeholderContent: string;
-      
-      // Use custom callback if provided, otherwise use default placeholder
-      if (onMinifyFile) {
-        placeholderContent = onMinifyFile(filePath);
-      } else {
-        placeholderContent = `[Content for ${filePath} has been minified and excluded]`;
-      }
-      
-      // Format the placeholder content
-      const formattedPlaceholder = formatFileContent(filePath, placeholderContent);
-      
-      // Calculate token count for the placeholder
-      const tokenCount = encode(formattedPlaceholder).length;
-      
-      // Add to results
-      results.push({
-        path: filePath,
-        content: formattedPlaceholder,
-        tokenCount
-      });
-      
-      // Update total token count and file size
-      stats.totalTokenCount = (stats.totalTokenCount || 0) + tokenCount;
-      stats.totalFileSizeKB = (stats.totalFileSizeKB || 0) + (placeholderContent.length / 1024);
-      
+      const result = await processMinifiedFile(filePath, onMinifyFile);
+      results.push(result);
+      updateStats(stats, result, false);
     } catch (error) {
-      // Handle any errors gracefully
-      console.warn(`Warning: Could not process minified file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
-      
-      // Use error placeholder
-      let errorContent: string;
-      
-      // Use custom callback if provided, otherwise use default placeholder
-      if (onMinifyFile) {
-        errorContent = onMinifyFile(filePath);
-      } else {
-        errorContent = `[Content for ${filePath} has been minified and excluded]`;
-      }
-      
-      const tokenCount = encode(errorContent).length;
-      const formattedContent = formatFileContent(filePath, errorContent);
-      
-      results.push({
-        path: filePath,
-        content: formattedContent,
-        tokenCount
-      });
-      
-      // Update total token count and file size
-      stats.totalTokenCount = (stats.totalTokenCount || 0) + tokenCount;
-      stats.totalFileSizeKB = (stats.totalFileSizeKB || 0) + (errorContent.length / 1024);
+      const errorResult = await handleFileError(filePath, error);
+      results.push(errorResult);
+      updateStats(stats, errorResult, false);
     }
   }
   
