@@ -5,12 +5,6 @@ All notable changes to this project will be documented in this file. See [standa
 ### 0.1.2 (2025-10-30)
 
 
-### Features
-
-* **cli:** add comment stripping functionality with --keep-comments flag ([0f9a034](https://github.com/Jisevind/src-context/commit/0f9a03408c3b46734c68532de97672652a15d96d))
-* **cli:** add support for multiple input paths processing ([60b73ec](https://github.com/Jisevind/src-context/commit/60b73ecef8234b9e048bcfc4da5baf86396e1e04))
-
-
 ### Bug Fixes
 
 * **core:** improve error handling for ignore and minify file operations ([eb44f97](https://github.com/Jisevind/src-context/commit/eb44f97250a5f6fb7343e69a2812912340da5a99))
