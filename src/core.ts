@@ -17,6 +17,10 @@ import ignore from 'ignore';
 import { BuildStats } from './types.js';
 import { loadPatternsFromFile } from './utils.js';
 
+// Constants for binary file detection
+const DEFAULT_SAMPLE_SIZE = 8192;
+const NULL_BYTE_THRESHOLD_RATIO = 0.1;
+const NON_PRINTABLE_THRESHOLD_RATIO = 0.3;
 
 /**
  * Gather files from input path with ignore pattern filtering
@@ -75,15 +79,15 @@ export async function gatherFiles(
     topTokenConsumers: []
   };
 
-  const ig = ignore.default();
-  const mg = ignore.default();
+  const combinedIgnore = ignore.default();
+  const minifyIgnore = ignore.default();
 
   // Create separate ignore instances for different precedence levels
-  const defaultIg = ignore.default();
-  const customIg = ignore.default();
-  const cliIg = ignore.default();
+  const defaultIgnore = ignore.default();
+  const customIgnore = ignore.default();
+  const cliIgnore = ignore.default();
 
-  defaultIg.add(defaultIgnores);
+  defaultIgnore.add(defaultIgnores);
 
   if (inputPaths.length === 0) {
     inputPaths.push('.');
@@ -93,27 +97,27 @@ export async function gatherFiles(
   const customIgnorePath = join(process.cwd(), customIgnoreFileName);
   const customPatterns = await loadPatternsFromFile(customIgnorePath);
   if (customPatterns.length > 0) {
-    customIg.add(customPatterns);
+    customIgnore.add(customPatterns);
   }
 
   const minifyPath = join(process.cwd(), minifyFileName);
   const minifyPatterns = await loadPatternsFromFile(minifyPath);
   if (minifyPatterns.length > 0) {
-    mg.add(minifyPatterns);
+    minifyIgnore.add(minifyPatterns);
   }
 
   if (cliIgnorePatterns.length > 0) {
-    cliIg.add(cliIgnorePatterns);
+    cliIgnore.add(cliIgnorePatterns);
   }
 
   // Build the combined ignore instance in order of precedence: CLI > Custom > Default
   // Add patterns in reverse order of precedence so CLI patterns (added last) have highest precedence
-  ig.add(defaultIgnores);
+  combinedIgnore.add(defaultIgnores);
   if (customPatterns.length > 0) {
-    ig.add(customPatterns);
+    combinedIgnore.add(customPatterns);
   }
   if (cliIgnorePatterns.length > 0) {
-    ig.add(cliIgnorePatterns);
+    combinedIgnore.add(cliIgnorePatterns);
   }
 
   // --- File/Directory Processing ---
@@ -174,20 +178,20 @@ export async function gatherFiles(
     relativePathForIgnore = relativePathForIgnore.replace(/\\/g, '/');
 
     // Check minification first - minification rules take precedence over ignore rules
-    if (mg.ignores(relativePathForIgnore)) {
+    if (minifyIgnore.ignores(relativePathForIgnore)) {
       filesToMinify.push(file);
       continue; // File is minified, no need to check ignore rules
     }
 
     // Use the combined ignore instance which properly handles precedence and negation
-    if (ig.ignores(relativePathForIgnore)) {
+    if (combinedIgnore.ignores(relativePathForIgnore)) {
       // Determine which pattern type caused the ignore by checking individual instances
       // Check in order of precedence: CLI > Custom > Default
-      if (cliIgnorePatterns.length > 0 && cliIg.ignores(relativePathForIgnore)) {
+      if (cliIgnorePatterns.length > 0 && cliIgnore.ignores(relativePathForIgnore)) {
         ignoredByCli++;
-      } else if (customPatterns.length > 0 && customIg.ignores(relativePathForIgnore)) {
+      } else if (customPatterns.length > 0 && customIgnore.ignores(relativePathForIgnore)) {
         ignoredByCustom++;
-      } else if (defaultIg.ignores(relativePathForIgnore)) {
+      } else if (defaultIgnore.ignores(relativePathForIgnore)) {
         ignoredByDefault++;
       } else {
         // Fallback: if none of the individual instances match but the combined one does,
@@ -275,10 +279,10 @@ function removeExtraWhitespace(content: string): string {
  * Optimized binary file detection that only reads the first few KB
  * This is much faster than isBinaryFile for large files
  * @param filePath - Path to the file
- * @param sampleSize - Number of bytes to sample (default: 8192)
+ * @param sampleSize - Number of bytes to sample (default: DEFAULT_SAMPLE_SIZE)
  * @returns Promise resolving to boolean indicating if file is binary
  */
-async function isBinaryFileOptimized(filePath: string, sampleSize: number = 8192): Promise<boolean> {
+async function isBinaryFileOptimized(filePath: string, sampleSize: number = DEFAULT_SAMPLE_SIZE): Promise<boolean> {
   try {
     const fileHandle = await open(filePath, 'r');
     try {
@@ -308,8 +312,8 @@ async function isBinaryFileOptimized(filePath: string, sampleSize: number = 8192
       }
       
       // Consider binary if more than 10% null bytes or more than 30% non-printable characters
-      const nullThreshold = sample.length * 0.1;
-      const nonPrintableThreshold = sample.length * 0.3;
+      const nullThreshold = sample.length * NULL_BYTE_THRESHOLD_RATIO;
+      const nonPrintableThreshold = sample.length * NON_PRINTABLE_THRESHOLD_RATIO;
       
       return nullBytes > nullThreshold || nonPrintable > nonPrintableThreshold;
     } finally {
