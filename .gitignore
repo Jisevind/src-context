@@ -116,3 +116,5 @@ watch-output.txt
 .vscode-test
 
 GEMINI.md
+REPORT.md
+codebase.md
