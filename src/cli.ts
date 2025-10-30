@@ -11,7 +11,7 @@ import { generateSummaryReport } from './summary.js';
 import { BuildStats } from './types.js';
 import clipboardy from 'clipboardy';
 import chokidar from 'chokidar';
-import { asyncDebounce } from './utils.js';
+import { asyncDebounce, loadPatternsFromFile } from './utils.js';
 import { join } from 'path';
 
 // Define all CLI options
@@ -110,20 +110,11 @@ program.action(async (paths: string[], options: any) => {
       }
 
       // Try to load custom ignore file
-      try {
-        const customIgnorePath = join(basePath, options.ignoreFile || '.contextignore');
-        const fs = await import('fs/promises');
-        const customIgnoreContent = await fs.readFile(customIgnorePath, 'utf-8');
-        const customPatterns = customIgnoreContent
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line && !line.startsWith('#'));
-        
-        if (customPatterns.length > 0) {
-          patterns.push(...customPatterns);
-        }
-      } catch (error) {
-        // Custom ignore file not found or couldn't be read - continue without it
+      const customIgnorePath = join(basePath, options.ignoreFile || '.contextignore');
+      const customPatterns = await loadPatternsFromFile(customIgnorePath);
+      
+      if (customPatterns.length > 0) {
+        patterns.push(...customPatterns);
       }
 
       return patterns;

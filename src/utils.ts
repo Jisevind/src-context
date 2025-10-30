@@ -73,3 +73,32 @@ export function asyncDebounce<T extends (...args: any[]) => Promise<any>>(func: 
     });
   } as T;
 }
+
+/**
+ * Load patterns from a file, parsing each line and filtering out comments and empty lines
+ * @param filePath - Path to the file containing patterns
+ * @returns Promise resolving to array of pattern strings
+ */
+export async function loadPatternsFromFile(filePath: string): Promise<string[]> {
+  try {
+    const { readFile } = await import('fs/promises');
+    const fileContent = await readFile(filePath, 'utf-8');
+    const patterns = fileContent
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'));
+    
+    return patterns;
+  } catch (error) {
+    // Check if the error is a file-not-found error (expected behavior)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      // File not found, return empty array
+      return [];
+    } else {
+      // For any other error (permissions, etc.), log a warning and return empty array
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Warning: Could not read patterns file ${filePath}: ${errorMessage}`);
+      return [];
+    }
+  }
+}

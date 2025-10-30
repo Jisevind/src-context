@@ -15,6 +15,7 @@ import ignore from 'ignore';
 
 // Import types
 import { BuildStats } from './types.js';
+import { loadPatternsFromFile } from './utils.js';
 
 
 /**
@@ -89,47 +90,16 @@ export async function gatherFiles(
   }
 
   // --- Ignore File Loading (from CWD) ---
-  let customPatterns: string[] = [];
   const customIgnorePath = join(process.cwd(), customIgnoreFileName);
-  try {
-    const customIgnoreContent = await readFile(customIgnorePath, 'utf-8');
-    customPatterns = customIgnoreContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
-    if (customPatterns.length > 0) {
-      customIg.add(customPatterns);
-    }
-  } catch (error) {
-    // Check if the error is a file-not-found error (expected behavior)
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      // No custom ignore file found, which is fine - continue silently
-    } else {
-      // For any other error (permissions, etc.), log a warning
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.warn(`Warning: Could not read ignore file ${customIgnorePath}: ${errorMessage}`);
-    }
+  const customPatterns = await loadPatternsFromFile(customIgnorePath);
+  if (customPatterns.length > 0) {
+    customIg.add(customPatterns);
   }
 
   const minifyPath = join(process.cwd(), minifyFileName);
-  try {
-    const minifyContent = await readFile(minifyPath, 'utf-8');
-    const minifyPatterns = minifyContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
-    if (minifyPatterns.length > 0) {
-      mg.add(minifyPatterns);
-    }
-  } catch (error) {
-    // Check if the error is a file-not-found error (expected behavior)
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      // No minify file found, which is fine - continue silently
-    } else {
-      // For any other error (permissions, etc.), log a warning
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.warn(`Warning: Could not read minify file ${minifyPath}: ${errorMessage}`);
-    }
+  const minifyPatterns = await loadPatternsFromFile(minifyPath);
+  if (minifyPatterns.length > 0) {
+    mg.add(minifyPatterns);
   }
 
   if (cliIgnorePatterns.length > 0) {
