@@ -77,7 +77,12 @@ export async function gatherFiles(
   const ig = ignore.default();
   const mg = ignore.default();
 
-  ig.add(defaultIgnores);
+  // Create separate ignore instances for different precedence levels
+  const defaultIg = ignore.default();
+  const customIg = ignore.default();
+  const cliIg = ignore.default();
+
+  defaultIg.add(defaultIgnores);
 
   if (inputPaths.length === 0) {
     inputPaths.push('.');
@@ -93,7 +98,7 @@ export async function gatherFiles(
       .map(line => line.trim())
       .filter(line => line && !line.startsWith('#'));
     if (customPatterns.length > 0) {
-      ig.add(customPatterns);
+      customIg.add(customPatterns);
     }
   } catch (error) {
     // No custom ignore file found, which is fine
@@ -113,6 +118,16 @@ export async function gatherFiles(
     // No minify file found, which is fine
   }
 
+  if (cliIgnorePatterns.length > 0) {
+    cliIg.add(cliIgnorePatterns);
+  }
+
+  // Build the combined ignore instance in order of precedence: CLI > Custom > Default
+  // Add patterns in reverse order of precedence so CLI patterns (added last) have highest precedence
+  ig.add(defaultIgnores);
+  if (customPatterns.length > 0) {
+    ig.add(customPatterns);
+  }
   if (cliIgnorePatterns.length > 0) {
     ig.add(cliIgnorePatterns);
   }
@@ -156,10 +171,6 @@ export async function gatherFiles(
   let ignoredByCustom = 0;
   let ignoredByCli = 0;
 
-  const defaultIg = ignore.default().add(defaultIgnores);
-  const customIg = ignore.default().add(customPatterns);
-  const cliIg = ignore.default().add(cliIgnorePatterns);
-
   for (const file of allFiles) {
     // Extract the relative path from the input path for ignore matching
     let relativePathForIgnore = file;
@@ -184,18 +195,19 @@ export async function gatherFiles(
       continue; // File is minified, no need to check ignore rules
     }
 
+    // Use the combined ignore instance which properly handles precedence and negation
     if (ig.ignores(relativePathForIgnore)) {
+      // Determine which pattern type caused the ignore by checking individual instances
       // Check in order of precedence: CLI > Custom > Default
-      if (cliIg.ignores(relativePathForIgnore)) {
+      if (cliIgnorePatterns.length > 0 && cliIg.ignores(relativePathForIgnore)) {
         ignoredByCli++;
-      } else if (customIg.ignores(relativePathForIgnore)) {
+      } else if (customPatterns.length > 0 && customIg.ignores(relativePathForIgnore)) {
         ignoredByCustom++;
       } else if (defaultIg.ignores(relativePathForIgnore)) {
         ignoredByDefault++;
       } else {
-        // Fallback for complex interactions (e.g., negations)
-        // If ig ignored it, but no individual checker did,
-        // attribute it to the highest precedence list that has patterns.
+        // Fallback: if none of the individual instances match but the combined one does,
+        // it might be due to complex interactions. Attribute to the highest precedence.
         if (cliIgnorePatterns.length > 0) {
           ignoredByCli++;
         } else if (customPatterns.length > 0) {
