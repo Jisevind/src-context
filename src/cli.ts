@@ -11,7 +11,7 @@ import { generateSummaryReport } from './summary.js';
 import { BuildStats } from './types.js';
 import clipboardy from 'clipboardy';
 import chokidar from 'chokidar';
-import { debounce } from './utils.js';
+import { asyncDebounce } from './utils.js';
 import { join } from 'path';
 
 // Define all CLI options
@@ -93,7 +93,7 @@ program.action(async (paths: string[], options: any) => {
     }
 
     // Create a debounced version of runBuild to prevent excessive rebuilds
-    const debouncedRunBuild = debounce(runBuild, 300);
+    const debouncedRunBuild = asyncDebounce(runBuild, 300);
 
     // Helper function to get ignore patterns for chokidar
     async function getIgnorePatterns(basePath: string): Promise<string[]> {
@@ -157,17 +157,29 @@ program.action(async (paths: string[], options: any) => {
       // Listen for file system events
       watcher.on('add', async (path) => {
         console.log(`\nFile added: ${path}, rebuilding...`);
-        await debouncedRunBuild();
+        try {
+          await debouncedRunBuild();
+        } catch (error) {
+          console.error('Watch build failed:', error);
+        }
       });
 
       watcher.on('change', async (path) => {
         console.log(`\nFile changed: ${path}, rebuilding...`);
-        await debouncedRunBuild();
+        try {
+          await debouncedRunBuild();
+        } catch (error) {
+          console.error('Watch build failed:', error);
+        }
       });
 
       watcher.on('unlink', async (path) => {
         console.log(`\nFile removed: ${path}, rebuilding...`);
-        await debouncedRunBuild();
+        try {
+          await debouncedRunBuild();
+        } catch (error) {
+          console.error('Watch build failed:', error);
+        }
       });
 
       // Handle watcher errors
