@@ -9,6 +9,7 @@ import { stat } from 'fs/promises';
 import { isBinaryFile } from 'isbinaryfile';
 import { open } from 'fs/promises';
 import { BuildStats } from './types.js';
+import { basename } from 'path';
 
 // Constants for binary file detection
 const DEFAULT_SAMPLE_SIZE = 8192;
@@ -225,7 +226,8 @@ export async function readAndProcessTextFile(
         const { default: strip } = await import('strip-comments');
         processedContent = strip(processedContent, {
           stripHtmlComments: true, // This option also strips HTML comments
-          preserveNewlines: true  // Keep blank lines from removed block comments
+          preserveNewlines: true,  // Keep blank lines from removed block comments
+          safe: true               // Preserve "protected" comments (/*! ... */ and //! ...)
         });
       } catch (stripError) {
         console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
@@ -354,12 +356,23 @@ export function formatFileContent(path: string, content: string): string {
  */
 function isWhitespaceSensitive(path: string): boolean {
   const whitespaceSensitiveExtensions = [
-    'py',   // Python
-    'yaml', // YAML
-    'yml',  // YAML
-    'haml', // HAML
-    'pug'   // Pug
+    'py',     // Python
+    'yaml',   // YAML
+    'yml',    // YAML
+    'haml',   // HAML
+    'pug',    // Pug
+    'sass',   // Sass
+    'styl',   // Stylus
+    'hs',     // Haskell
+    'fs',     // F#
+    'coffee', // CoffeeScript
+    'ws'      // Whitespace (the fun one!)
   ];
+
+  const filename = basename(path).toLowerCase();
+  if (filename === 'makefile' || filename.endsWith('.mk')) {
+    return true;
+  }
   
   const ext = path.split('.').pop()?.toLowerCase() || '';
   return whitespaceSensitiveExtensions.includes(ext);
