@@ -168,6 +168,131 @@ export async function handleBinaryOrSvgFile(
 }
 
 /**
+ * Check if a file path is a Python file
+ * @param filePath - Path to the file
+ * @returns true if the file is a Python file
+ */
+function isPythonFilePath(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  return ext === 'py';
+}
+
+/**
+ * Specialized processing for Python files
+ * Strips single-line # comments while preserving docstrings and original indentation
+ * @param content - The Python file content
+ * @returns Content with single-line comments removed, but docstrings and indentation preserved
+ */
+function processPythonContent(content: string): string {
+  const lines = content.split('\n');
+  const processedLines: string[] = [];
+  let inTripleQuotes = false;
+  let tripleQuoteType: '"""' | "'''" | null = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmedLine = line.trim();
+    
+    // Track triple-quoted strings (docstrings)
+    if (!inTripleQuotes) {
+      // Check for start of triple-quoted string
+      if (trimmedLine.includes('"""')) {
+        // Handle cases where both start and end are on same line
+        const firstTripleQuote = trimmedLine.indexOf('"""');
+        const secondTripleQuote = trimmedLine.indexOf('"""', firstTripleQuote + 3);
+        
+        if (secondTripleQuote !== -1 && firstTripleQuote !== secondTripleQuote) {
+          // Both start and end on same line, keep entire line
+          processedLines.push(line);
+          continue;
+        } else {
+          // Start of multi-line docstring
+          inTripleQuotes = true;
+          tripleQuoteType = '"""';
+          processedLines.push(line);
+          continue;
+        }
+      } else if (trimmedLine.includes("'''")) {
+        // Handle cases where both start and end are on same line
+        const firstTripleQuote = trimmedLine.indexOf("'''");
+        const secondTripleQuote = trimmedLine.indexOf("'''", firstTripleQuote + 3);
+        
+        if (secondTripleQuote !== -1 && firstTripleQuote !== secondTripleQuote) {
+          // Both start and end on same line, keep entire line
+          processedLines.push(line);
+          continue;
+        } else {
+          // Start of multi-line docstring
+          inTripleQuotes = true;
+          tripleQuoteType = "'''";
+          processedLines.push(line);
+          continue;
+        }
+      }
+    } else {
+      // We're inside a triple-quoted string
+      if (tripleQuoteType && trimmedLine.includes(tripleQuoteType)) {
+        // End of triple-quoted string
+        inTripleQuotes = false;
+        tripleQuoteType = null;
+      }
+      processedLines.push(line);
+      continue;
+    }
+    
+    // Process non-string lines (strip single-line comments)
+    if (!inTripleQuotes) {
+      // Remove single-line comments that are not inside strings
+      // Look for # that is not inside quotes
+      let commentIndex = -1;
+      let inSingleQuotes = false;
+      let inDoubleQuotes = false;
+      let escaped = false;
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j]!;
+        
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        
+        if (char === '\\') {
+          escaped = true;
+          continue;
+        }
+        
+        if (char === '"' && !inSingleQuotes) {
+          inDoubleQuotes = !inDoubleQuotes;
+          continue;
+        }
+        
+        if (char === "'" && !inDoubleQuotes) {
+          inSingleQuotes = !inSingleQuotes;
+          continue;
+        }
+        
+        if (char === '#' && !inSingleQuotes && !inDoubleQuotes) {
+          commentIndex = j;
+          break;
+        }
+      }
+      
+      if (commentIndex !== -1) {
+        // Remove everything from # onwards, but preserve the line for indentation
+        const beforeComment = line.substring(0, commentIndex);
+        processedLines.push(beforeComment.trimEnd());
+      } else {
+        // No comment found, keep the line as-is
+        processedLines.push(line);
+      }
+    }
+  }
+  
+  return processedLines.join('\n');
+}
+
+/**
  * Read and process a text file (strip comments, remove whitespace, truncate if necessary)
  * @param filePath - Path to the file
  * @param options - Processing options
@@ -217,26 +342,36 @@ export async function readAndProcessTextFile(
     
     let processedContent = fileContent; // Start with original content
 
+    // Check if this is a Python file for specialized processing
+    const isPythonFile = isPythonFilePath(filePath);
+    
     // Strip comments if the flag is true (which will be the default)
     // but only for non-whitespace-sensitive files
     if (stripFileComments && !isWhitespaceSensitive(filePath)) {
-      try {
-        // Use dynamic import directly
-        // @ts-ignore - strip-comments lacks TypeScript declarations
-        const { default: strip } = await import('strip-comments');
-        processedContent = strip(processedContent, {
-          stripHtmlComments: true, // This option also strips HTML comments
-          preserveNewlines: true,  // Keep blank lines from removed block comments
-          safe: true               // Preserve "protected" comments (/*! ... */ and //! ...)
-        });
-      } catch (stripError) {
-        console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
-        processedContent = fileContent; // Fallback to original content
+      if (isPythonFile) {
+        // Use specialized Python processing
+        processedContent = processPythonContent(processedContent);
+      } else {
+        // Use generic comment stripping for non-Python files
+        try {
+          // Use dynamic import directly
+          // @ts-ignore - strip-comments lacks TypeScript declarations
+          const { default: strip } = await import('strip-comments');
+          processedContent = strip(processedContent, {
+            stripHtmlComments: true, // This option also strips HTML comments
+            preserveNewlines: true,  // Keep blank lines from removed block comments
+            safe: true               // Preserve "protected" comments (/*! ... */ and //! ...)
+          });
+        } catch (stripError) {
+          console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
+          processedContent = fileContent; // Fallback to original content
+        }
       }
     }
 
     // Now, process whitespace on the (potentially) comment-stripped content
-    if (removeWhitespace && !isWhitespaceSensitive(filePath)) {
+    // Python files preserve their original whitespace (indentation matters!)
+    if (removeWhitespace && !isWhitespaceSensitive(filePath) && !isPythonFile) {
       content = removeExtraWhitespace(processedContent); // Use processedContent here
     } else {
       content = processedContent; // Use processedContent here
@@ -356,7 +491,6 @@ export function formatFileContent(path: string, content: string): string {
  */
 function isWhitespaceSensitive(path: string): boolean {
   const whitespaceSensitiveExtensions = [
-    'py',     // Python
     'yaml',   // YAML
     'yml',    // YAML
     'haml',   // HAML
