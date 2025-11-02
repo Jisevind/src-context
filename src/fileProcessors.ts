@@ -357,8 +357,18 @@ export async function readAndProcessTextFile(
           // Use dynamic import directly
           // @ts-ignore - strip-comments lacks TypeScript declarations
           const { default: strip } = await import('strip-comments');
+          
+          // Get file extension to determine if HTML comments should be stripped
+          const ext = filePath.split('.').pop()?.toLowerCase() || '';
+          
+          // Define extensions that should have HTML comments stripped
+          const htmlCommentExtensions = ['html', 'xml', 'svg', 'jsx', 'tsx'];
+          
+          // Only strip HTML comments for web/markup file types, not for markdown
+          const shouldStripHtmlComments = htmlCommentExtensions.includes(ext);
+          
           processedContent = strip(processedContent, {
-            stripHtmlComments: true, // This option also strips HTML comments
+            stripHtmlComments: shouldStripHtmlComments, // Dynamic based on file type
             preserveNewlines: true,  // Keep blank lines from removed block comments
             safe: true               // Preserve "protected" comments (/*! ... */ and //! ...)
           });
@@ -500,7 +510,8 @@ function isWhitespaceSensitive(path: string): boolean {
     'hs',     // Haskell
     'fs',     // F#
     'coffee', // CoffeeScript
-    'ws'      // Whitespace (the fun one!)
+    'ws',     // Whitespace (the fun one!)
+    'py'      // Python (indentation matters!)
   ];
 
   const filename = basename(path).toLowerCase();

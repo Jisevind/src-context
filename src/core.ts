@@ -189,22 +189,23 @@ export async function gatherFiles(
     if (combinedIgnore.ignores(relativePathForIgnore)) {
       // Determine which pattern type caused the ignore by checking individual instances
       // Check in order of precedence: CLI > Custom > Default
+      let ignoredByType = 'default';
+      
       if (cliIgnorePatterns.length > 0 && cliIgnore.ignores(relativePathForIgnore)) {
-        ignoredByCli++;
+        ignoredByType = 'cli';
       } else if (customPatterns.length > 0 && customIgnore.ignores(relativePathForIgnore)) {
-        ignoredByCustom++;
+        ignoredByType = 'custom';
       } else if (defaultIgnore.ignores(relativePathForIgnore)) {
-        ignoredByDefault++;
+        ignoredByType = 'default';
+      }
+      
+      // Increment the appropriate counter
+      if (ignoredByType === 'cli') {
+        ignoredByCli++;
+      } else if (ignoredByType === 'custom') {
+        ignoredByCustom++;
       } else {
-        // Fallback: if none of the individual instances match but the combined one does,
-        // it might be due to complex interactions. Attribute to the highest precedence.
-        if (cliIgnorePatterns.length > 0) {
-          ignoredByCli++;
-        } else if (customPatterns.length > 0) {
-          ignoredByCustom++;
-        } else {
-          ignoredByDefault++;
-        }
+        ignoredByDefault++;
       }
       continue;
     }
