@@ -27,6 +27,7 @@ program
     return previous ? [...previous, value] : [value];
   }, [])
   .option('--ignore-file <name>', 'Specify custom ignore file name', '.contextignore')
+  .option('--priority-file <name>', 'Specify priority file name', '.contextpriority')
   .option('--show-tokens', 'Trigger the getFileStats function')
   .option('--keep-whitespace', 'Disables whitespace removal')
   .option('--keep-comments', 'Keep comments in the output (comments are stripped by default)')
@@ -47,7 +48,8 @@ program.action(async (paths: string[], options: any) => {
       keepComments: options.keepComments || false,
       tokenBudget: options.tokenBudget ? parseInt(options.tokenBudget, 10) : undefined,
       maxFileKb: options.maxFileKb ? parseInt(options.maxFileKb, 10) : undefined,
-      noDefaultIgnores: options.noDefaultIgnores || false
+      noDefaultIgnores: options.noDefaultIgnores || false,
+      priorityFile: options.priorityFile || '.contextpriority'
     };
 
     // Create the runBuild function that contains all the build logic

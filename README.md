@@ -108,6 +108,7 @@ Here are some common examples:
       --clip                 Copy output to clipboard
       --ignore <pattern>     Collect multiple patterns into an array
       --ignore-file <name>   Specify custom ignore file name (default: ".contextignore")
+      --priority-file <name> Specify priority file name (default: ".contextpriority")
       --show-tokens          Trigger the getFileStats function
       --keep-whitespace      Disables whitespace removal
       --keep-comments        Keep comments in the output (comments are stripped by default)
@@ -158,7 +159,23 @@ This is perfect for build artifacts, lockfiles, or large data files.
     # package-lock.json
     
     [Content for package-lock.json has been minified and excluded]
-```   
+```
+
+### `.contextpriority` (To Prioritize)
+
+This file solves a problem with the `--token-budget` feature. By default, the tool fits as many small files as possible, which can cause large, important files (like your main `index.js`) to be dropped.
+
+Any file or glob pattern in `.contextpriority` is **guaranteed** to be included in the budget *first*. The tool will then fill the remaining space with other files.
+
+**Example `.contextpriority`:**
+```
+    # Always include my main entry points and core logic
+    src/index.ts
+    src/core.ts
+    
+    # Always include the main package file
+    package.json
+```
 
 ## As a Library
 
@@ -180,6 +197,8 @@ You can also import `src-context` into your own Node.js projects.
       tokenBudget: 8192,
       maxFileKb: 1024,
       keepComments: false,
+      priorityFile: '.contextpriority',
+      noDefaultIgnores: false
     };
     
     // 1. Get the full context as a string

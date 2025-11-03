@@ -6,7 +6,8 @@
 import { gatherFiles, processFiles } from './core.js';
 import { defaultIgnores } from './defaultIgnores.js';
 import { BuildStats } from './types.js';
-import { generateStructureTree } from './utils.js';
+import { generateStructureTree, loadPatternsFromFile } from './utils.js';
+import { default as ignore } from 'ignore';
 
 export interface ContextEngineOptions {
   inputPaths: string[];
@@ -16,6 +17,7 @@ export interface ContextEngineOptions {
   keepComments?: boolean;
   minifyFile?: string | undefined;
   tokenBudget?: number | undefined;
+  priorityFile?: string;
   onBinaryFile?: (path: string) => string;
   onMinifyFile?: (path: string) => string;
   maxFileKb?: number | undefined;
@@ -45,14 +47,45 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
 
   // If token budget is specified, apply budget filtering
   if (options.tokenBudget !== undefined) {
-    // Sort files by token count in ascending order (smallest first)
-    const sortedFiles = processedFiles.sort((a, b) => a.tokenCount - b.tokenCount);
+    // Load priority patterns from file
+    const priorityPatterns = await loadPatternsFromFile(options.priorityFile || '.contextpriority');
+    
+    // Create a matcher for priority files
+    const priorityMatcher = (ignore as any)().add(priorityPatterns);
+    
+    // Partition files into priority and remaining files
+    const priorityFiles = [];
+    const remainingFiles = [];
+    
+    for (const file of processedFiles) {
+      if (priorityMatcher.ignores(file.path)) {
+        priorityFiles.push(file);
+      } else {
+        remainingFiles.push(file);
+      }
+    }
+    
+    // Sort priority files by size (smallest first) for efficiency
+    priorityFiles.sort((a, b) => a.tokenCount - b.tokenCount);
     
     let totalTokens = 0;
     const budgetFiles = [];
     
-    // Iterate through sorted files and add to budget until limit is reached
-    for (const file of sortedFiles) {
+    // Process priority files first
+    for (const file of priorityFiles) {
+      if (totalTokens + file.tokenCount <= options.tokenBudget) {
+        budgetFiles.push(file);
+        totalTokens += file.tokenCount;
+      } else {
+        console.warn(`Priority file "${file.path}" skipped due to token budget constraints`);
+      }
+    }
+    
+    // Sort remaining files by token count in ascending order (smallest first)
+    const sortedRemainingFiles = remainingFiles.sort((a, b) => a.tokenCount - b.tokenCount);
+    
+    // Process remaining files to fill the rest of the budget
+    for (const file of sortedRemainingFiles) {
       if (totalTokens + file.tokenCount <= options.tokenBudget) {
         budgetFiles.push(file);
         totalTokens += file.tokenCount;
@@ -120,14 +153,45 @@ export async function getFileStats(options: ContextEngineOptions): Promise<{ fil
 
   // If token budget is specified, apply budget filtering
   if (options.tokenBudget !== undefined) {
-    // Sort files by token count in ascending order (smallest first)
-    const sortedStats = fileStats.sort((a, b) => a.tokenCount - b.tokenCount);
+    // Load priority patterns from file
+    const priorityPatterns = await loadPatternsFromFile(options.priorityFile || '.contextpriority');
+    
+    // Create a matcher for priority files
+    const priorityMatcher = (ignore as any)().add(priorityPatterns);
+    
+    // Partition files into priority and remaining files
+    const priorityStats = [];
+    const remainingStats = [];
+    
+    for (const stat of fileStats) {
+      if (priorityMatcher.ignores(stat.path)) {
+        priorityStats.push(stat);
+      } else {
+        remainingStats.push(stat);
+      }
+    }
+    
+    // Sort priority files by size (smallest first) for efficiency
+    priorityStats.sort((a, b) => a.tokenCount - b.tokenCount);
     
     let totalTokens = 0;
     const budgetStats = [];
     
-    // Iterate through sorted files and add to budget until limit is reached
-    for (const stat of sortedStats) {
+    // Process priority files first
+    for (const stat of priorityStats) {
+      if (totalTokens + stat.tokenCount <= options.tokenBudget) {
+        budgetStats.push(stat);
+        totalTokens += stat.tokenCount;
+      } else {
+        console.warn(`Priority file "${stat.path}" skipped due to token budget constraints`);
+      }
+    }
+    
+    // Sort remaining files by token count in ascending order (smallest first)
+    const sortedRemainingStats = remainingStats.sort((a, b) => a.tokenCount - b.tokenCount);
+    
+    // Process remaining files to fill the rest of the budget
+    for (const stat of sortedRemainingStats) {
       if (totalTokens + stat.tokenCount <= options.tokenBudget) {
         budgetStats.push(stat);
         totalTokens += stat.tokenCount;
