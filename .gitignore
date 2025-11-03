@@ -82,15 +82,6 @@ desktop.ini
 *.tmp
 *.temp
 
-# Test files
-*.test.ts
-*.spec.ts
-*.test.js
-*.spec.js
-test/
-tests/
-__tests__/
-
 # Output files from src-context tool
 output.md
 *.output.md
