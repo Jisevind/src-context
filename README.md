@@ -16,18 +16,21 @@ A smart, token-aware CLI for aggregating and optimizing codebases for LLM contex
     
 -   **📊 Token Analysis:** Use `--show-tokens` to get a detailed breakdown of which files are the "most expensive" in your project.
     
--   **⚙️ Smart Optimizations:** Automatically removes unnecessary whitespace from code (but intelligently skips files like Python or YAML) to save tokens.
+-   **⚙️ Smart Optimizations:** Intelligently removes unnecessary whitespace from code while preserving whitespace-sensitive files (Python, YAML, Haskell, etc.) and using specialized processing for Python that strips `#` comments while keeping valuable `"""docstrings"""`.
     
 -   **🛡️ Robust Ignoring:** Combines default ignores (`node_modules`, `.git`, etc.), a custom `.contextignore` file, and CLI `--ignore` patterns for total control.
-    
--   **🧩 Library First:** Can be imported as a Node.js library for use in other projects.
     
 -   **✅ Safe & Configurable:** Handles binary files, SVGs, and lets you set a max file size with `--max-file-kb`.
     
 -   **📁 Multiple Paths:** Process multiple files and directories in a single command.
     
--   **💬 Comment Control:** Strip comments by default to save tokens, or keep them with `--keep-comments`.
+-   **💬 Smart Comment Control:** Strip comments by default, but _intelligently_:
+    -   **Keeps Docstrings:** In Python, it removes `#` comments but preserves high-value `"""docstrings"""`.
+    -   **Preserves Metadata:** It keeps HTML comments (`<!-- -->`) in Markdown files but strips them from `.html` and `.jsx` files.
+    -   **Protects Licenses:** It automatically keeps "protected" comments like `/*! ... */` and `//!` in all files.
+    -   Use `--keep-comments` to preserve all comments.
     
+-   **🧩 Library First:** Can be imported as a Node.js library for use in other projects.
 
 ## Installation
 
@@ -175,6 +178,7 @@ You can also import `src-context` into your own Node.js projects.
       minifyFile: '.contextminify',
       tokenBudget: 8192,
       maxFileKb: 1024,
+      keepComments: false,
     };
     
     // 1. Get the full context as a string
