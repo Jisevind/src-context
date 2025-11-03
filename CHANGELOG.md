@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.2.0](https://github.com/Jisevind/src-context/compare/v0.1.2...v0.2.0) (2025-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **readme:** none
+
+### Features
+
+* add support for priority files to ensure important files are included in token budget ([d728c48](https://github.com/Jisevind/src-context/commit/d728c48bdc14bfa7b902f1ffabb0dacaf17cd52c))
+* **cli:** add --no-default-ignores flag to disable default ignore patterns ([a70eb44](https://github.com/Jisevind/src-context/commit/a70eb44c7344ec2df108c79331a0611259fec077))
+* **filetypes:** add smart detection for more whitespace-sensitive languages and makefiles ([6a9a1c0](https://github.com/Jisevind/src-context/commit/6a9a1c0aa3f2b524c939d76971177615f4874d85))
+* **python:** implement intelligent comment filtering for python source files ([b0afdcb](https://github.com/Jisevind/src-context/commit/b0afdcb5a93b1c9d6280f7782141c8cf3fc78605))
+* **readme:** enhance documentation for smart comment control and optimizations ([8ac0e3a](https://github.com/Jisevind/src-context/commit/8ac0e3a8a4932727dc1ca308475069af628202c8))
+
 ### 0.1.2 (2025-10-30)
 
 

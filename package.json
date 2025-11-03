@@ -1,6 +1,6 @@
 {
   "name": "src-context",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A CLI tool for processing and analyzing code context",
   "type": "module",
   "main": "dist/index.js",
