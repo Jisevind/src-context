@@ -4,11 +4,6 @@ All notable changes to this project will be documented in this file. See [standa
 
 ## [0.2.0](https://github.com/Jisevind/src-context/compare/v0.1.2...v0.2.0) (2025-11-03)
 
-
-### ⚠ BREAKING CHANGES
-
-* **readme:** none
-
 ### Features
 
 * add support for priority files to ensure important files are included in token budget ([d728c48](https://github.com/Jisevind/src-context/commit/d728c48bdc14bfa7b902f1ffabb0dacaf17cd52c))
