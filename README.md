@@ -1,4 +1,4 @@
-# 🤖 src-context
+# src-context
 
 A smart, token-aware CLI for aggregating and optimizing codebases for LLM context.
 
@@ -6,31 +6,31 @@ A smart, token-aware CLI for aggregating and optimizing codebases for LLM contex
 
 ## Features
 
--   **⚡ Clipboard Ready:** Use `--clip` to copy the entire output directly to your clipboard.
+-   **Clipboard Ready:** Use `--clip` to copy the entire output directly to your clipboard.
     
--   **💸 Token Budgeting:** Set a limit with `--token-budget <number>` to guarantee the output never exceeds your model's context window.
+-   **Token Budgeting:** Set a limit with `--token-budget <number>` to guarantee the output never exceeds your model's context window.
     
--   **🧠 Smart Minification:** Use a `.contextminify` file to include a file's _path_ but not its _content_, saving thousands of tokens on build artifacts or lockfiles.
+-   **Smart Minification:** Use a `.contextminify` file to include a file's _path_ but not its _content_, saving thousands of tokens on build artifacts or lockfiles.
     
--   **👀 Watch Mode:** Run with `--watch` to automatically rebuild the context every time you save a file.
+-   **Watch Mode:** Run with `--watch` to automatically rebuild the context every time you save a file.
     
--   **📊 Token Analysis:** Use `--show-tokens` to get a detailed breakdown of which files are the "most expensive" in your project.
+-   **Token Analysis:** Use `--show-tokens` to get a detailed breakdown of which files are the "most expensive" in your project.
     
--   **⚙️ Smart Optimizations:** Intelligently removes unnecessary whitespace from code while preserving whitespace-sensitive files (Python, YAML, Haskell, etc.) and using specialized processing for Python that strips `#` comments while keeping valuable `"""docstrings"""`.
+-   **Smart Optimizations:** Intelligently removes unnecessary whitespace from code while preserving whitespace-sensitive files (Python, YAML, Haskell, etc.) and using specialized processing for Python that strips `#` comments while keeping valuable `"""docstrings"""`.
     
--   **🛡️ Robust Ignoring:** Combines default ignores (which can be disabled with `--no-default-ignores`), a custom `.contextignore` file, and CLI `--ignore` patterns for total control.
+-   **Robust Ignoring:** Combines default ignores (which can be disabled with `--no-default-ignores`), a custom `.contextignore` file, and CLI `--ignore` patterns for total control.
     
--   **✅ Safe & Configurable:** Handles binary files, SVGs, and lets you set a max file size with `--max-file-kb`.
+-   **Safe & Configurable:** Handles binary files, SVGs, and lets you set a max file size with `--max-file-kb`.
     
--   **📁 Multiple Paths:** Process multiple files and directories in a single command.
+-   **Multiple Paths:** Process multiple files and directories in a single command.
     
--   **💬 Smart Comment Control:** Strip comments by default, but _intelligently_:
+-   **Smart Comment Control:** Strip comments by default, but _intelligently_:
     -   **Keeps Docstrings:** In Python, it removes `#` comments but preserves high-value `"""docstrings"""`.
     -   **Preserves Metadata:** It keeps HTML comments (`<!-- -->`) in Markdown files but strips them from `.html` and `.jsx` files.
     -   **Protects Licenses:** It automatically keeps "protected" comments like `/*! ... */` and `//!` in all files.
     -   Use `--keep-comments` to preserve all comments.
     
--   **🧩 Library First:** Can be imported as a Node.js library for use in other projects.
+-   **Library First:** Can be imported as a Node.js library for use in other projects.
 
 ## Installation
 
