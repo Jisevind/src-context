@@ -18,7 +18,7 @@ A smart, token-aware CLI for aggregating and optimizing codebases for LLM contex
     
 -   **⚙️ Smart Optimizations:** Intelligently removes unnecessary whitespace from code while preserving whitespace-sensitive files (Python, YAML, Haskell, etc.) and using specialized processing for Python that strips `#` comments while keeping valuable `"""docstrings"""`.
     
--   **🛡️ Robust Ignoring:** Combines default ignores (`node_modules`, `.git`, etc.), a custom `.contextignore` file, and CLI `--ignore` patterns for total control.
+-   **🛡️ Robust Ignoring:** Combines default ignores (which can be disabled with `--no-default-ignores`), a custom `.contextignore` file, and CLI `--ignore` patterns for total control.
     
 -   **✅ Safe & Configurable:** Handles binary files, SVGs, and lets you set a max file size with `--max-file-kb`.
     
@@ -113,6 +113,7 @@ Here are some common examples:
       --keep-comments        Keep comments in the output (comments are stripped by default)
       --token-budget <number> Stop processing when total tokens exceed this budget
       --watch                For the watch mode
+      --no-default-ignores   Disables the default ignore patterns (node_modules, .git, etc.)
       --max-file-kb <number> Maximum file size in KB to process (default: 1024)
       -h, --help             display help for command
 ```

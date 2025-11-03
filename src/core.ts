@@ -12,6 +12,7 @@ import ignore from 'ignore';
 // Import types
 import { BuildStats } from './types.js';
 import { loadPatternsFromFile } from './utils.js';
+import { defaultIgnores } from './defaultIgnores.js';
 
 // Import helper functions from fileProcessors
 import {
@@ -30,40 +31,15 @@ import {
  * @param cliIgnorePatterns - Ignore patterns from CLI arguments
  * @param customIgnoreFileName - Name of custom ignore file (e.g., '.contextignore')
  * @param minifyFileName - Name of minify file (e.g., '.contextminify')
+ * @param noDefaultIgnores - Whether to disable default ignore patterns
  * @returns Promise resolving to object with filesToInclude, filesToMinify arrays and stats
  */
-export const defaultIgnores = [
-  'node_modules/**',
-  '.git/**',
-  '.DS_Store',
-  'package-lock.json',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-  '.env',
-  '.env.local',
-  '.env.*.local',
-  'dist/**',
-  'build/**',
-  'coverage/**',
-  '**/*.log',
-  '**/*.tmp',
-  '**/*.temp',
-  '.cache/**',
-  '.vscode/**',
-  '.idea/**',
-  '**/*.swp',
-  '**/*.swo',
-  '*~',
-  '.DS_Store/**',
-  'Thumbs.db',
-  'desktop.ini'
-];
-
 export async function gatherFiles(
   inputPaths: string[],
   cliIgnorePatterns: string[] = [],
   customIgnoreFileName: string = '.contextignore',
-  minifyFileName: string = '.contextminify'
+  minifyFileName: string = '.contextminify',
+  noDefaultIgnores: boolean = false
 ): Promise<{ filesToInclude: string[], filesToMinify: string[], stats: Partial<BuildStats> }> {
 
   const stats: Partial<BuildStats> = {
@@ -89,7 +65,9 @@ export async function gatherFiles(
   const customIgnore = ignore.default();
   const cliIgnore = ignore.default();
 
-  defaultIgnore.add(defaultIgnores);
+  if (!noDefaultIgnores) {
+    defaultIgnore.add(defaultIgnores);
+  }
 
   if (inputPaths.length === 0) {
     inputPaths.push('.');
@@ -114,7 +92,9 @@ export async function gatherFiles(
 
   // Build the combined ignore instance in order of precedence: CLI > Custom > Default
   // Add patterns in reverse order of precedence so CLI patterns (added last) have highest precedence
-  combinedIgnore.add(defaultIgnores);
+  if (!noDefaultIgnores) {
+    combinedIgnore.add(defaultIgnores);
+  }
   if (customPatterns.length > 0) {
     combinedIgnore.add(customPatterns);
   }
@@ -162,6 +142,13 @@ export async function gatherFiles(
   let ignoredByCli = 0;
 
   for (const file of allFiles) {
+    // SAFETY CHECK: Always filter out .git files regardless of ignore patterns
+    const normalizedFilePath = file.replace(/\\/g, '/');
+    if (normalizedFilePath.includes('.git/') || normalizedFilePath.endsWith('.git')) {
+      ignoredByDefault++; // Count as ignored by default
+      continue;
+    }
+
     // Extract the relative path from the input path for ignore matching
     let relativePathForIgnore = file;
     for (const inputPath of inputPaths) {

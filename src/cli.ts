@@ -6,7 +6,8 @@
  */
 
 import { program } from 'commander';
-import { generateContext, getFileStats, defaultIgnores } from './index.js';
+import { generateContext, getFileStats } from './index.js';
+import { defaultIgnores } from './defaultIgnores.js';
 import { generateSummaryReport } from './summary.js';
 import { BuildStats } from './types.js';
 import clipboardy from 'clipboardy';
@@ -30,6 +31,7 @@ program
   .option('--keep-whitespace', 'Disables whitespace removal')
   .option('--keep-comments', 'Keep comments in the output (comments are stripped by default)')
   .option('--token-budget <number>', 'Stop processing when total tokens exceed this budget')
+  .option('--no-default-ignores', 'Disable default ignore patterns')
   .option('--watch', 'For the watch mode')
   .option('--max-file-kb <number>', 'Maximum file size in KB to process (default: 1024)');
 
@@ -44,7 +46,8 @@ program.action(async (paths: string[], options: any) => {
       removeWhitespace: !options.keepWhitespace,
       keepComments: options.keepComments || false,
       tokenBudget: options.tokenBudget ? parseInt(options.tokenBudget, 10) : undefined,
-      maxFileKb: options.maxFileKb ? parseInt(options.maxFileKb, 10) : undefined
+      maxFileKb: options.maxFileKb ? parseInt(options.maxFileKb, 10) : undefined,
+      noDefaultIgnores: options.noDefaultIgnores || false
     };
 
     // Create the runBuild function that contains all the build logic

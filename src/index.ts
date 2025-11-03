@@ -3,8 +3,10 @@
  * This file exports the core functionality for the src-context library
  */
 
-import { gatherFiles, processFiles, defaultIgnores } from './core.js';
+import { gatherFiles, processFiles } from './core.js';
+import { defaultIgnores } from './defaultIgnores.js';
 import { BuildStats } from './types.js';
+import { generateStructureTree } from './utils.js';
 
 export interface ContextEngineOptions {
   inputPaths: string[];
@@ -17,6 +19,7 @@ export interface ContextEngineOptions {
   onBinaryFile?: (path: string) => string;
   onMinifyFile?: (path: string) => string;
   maxFileKb?: number | undefined;
+  noDefaultIgnores?: boolean;
 }
 
 /**
@@ -33,7 +36,8 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
     inputPaths,
     options.cliIgnores,
     options.customIgnoreFile,
-    options.minifyFile || '.contextminify'
+    options.minifyFile || '.contextminify',
+    options.noDefaultIgnores
   );
 
   // Process the gathered files
@@ -68,13 +72,21 @@ export async function generateContext(options: ContextEngineOptions): Promise<{ 
       .slice(0, 3)
       .map(file => ({ path: file.path, tokenCount: file.tokenCount }));
     
+    // Get file paths and generate structure tree
+    const budgetFilePaths = budgetFiles.map(file => file.path);
+    const treeString = generateStructureTree(budgetFilePaths);
+    
     // Join content from files that fit within the budget
-    const combinedContent = budgetFiles.map((file: { content: string }) => file.content).join('\n\n');
+    const combinedContent = treeString + '\n\n' + budgetFiles.map((file: { content: string }) => file.content).join('\n\n');
     return { finalContent: combinedContent, stats: updatedStats as BuildStats };
   }
 
+  // Get file paths and generate structure tree
+  const allFilePaths = processedFiles.map(file => file.path);
+  const treeString = generateStructureTree(allFilePaths);
+
   // Join all formatted content strings into one single string
-  const combinedContent = processedFiles.map((file: { content: string }) => file.content).join('\n\n');
+  const combinedContent = treeString + '\n\n' + processedFiles.map((file: { content: string }) => file.content).join('\n\n');
 
   return { finalContent: combinedContent, stats: stats as BuildStats };
 }
@@ -93,7 +105,8 @@ export async function getFileStats(options: ContextEngineOptions): Promise<{ fil
     inputPaths,
     options.cliIgnores,
     options.customIgnoreFile,
-    options.minifyFile || '.contextminify'
+    options.minifyFile || '.contextminify',
+    options.noDefaultIgnores
   );
 
   // Process the gathered files
