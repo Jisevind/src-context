@@ -24,19 +24,19 @@
   "license": "MIT",
   "dependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.52.5",
-    "chokidar": "^3.5.3",
-    "clipboardy": "^4.0.0",
-    "commander": "^11.1.0",
-    "glob": "^10.3.10",
-    "gpt-tokenizer": "^2.1.2",
-    "ignore": "^5.3.1",
+    "chokidar": "^4.0.3",
+    "clipboardy": "^5.0.0",
+    "commander": "^14.0.2",
+    "glob": "^11.0.3",
+    "gpt-tokenizer": "^3.2.0",
+    "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.6",
     "strip-comments": "^2.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.10.6",
+    "@types/node": "^24.10.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
-    "vitest": "^4.0.5"
+    "vitest": "^4.0.6"
   }
 }

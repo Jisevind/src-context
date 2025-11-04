@@ -57,13 +57,13 @@ export async function gatherFiles(
     topTokenConsumers: []
   };
 
-  const combinedIgnore = ignore.default();
-  const minifyIgnore = ignore.default();
+  const combinedIgnore = ignore();
+  const minifyIgnore = ignore();
 
   // Create separate ignore instances for different precedence levels
-  const defaultIgnore = ignore.default();
-  const customIgnore = ignore.default();
-  const cliIgnore = ignore.default();
+  const defaultIgnore = ignore();
+  const customIgnore = ignore();
+  const cliIgnore = ignore();
 
   if (!noDefaultIgnores) {
     defaultIgnore.add(defaultIgnores);
