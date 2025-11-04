@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateStructureTree } from '../../src/utils.js';
+import { generateStructureTree } from '../../dist/utils.js';
 
 describe('generateStructureTree', () => {
   it('should generate a tree structure from an array of file paths', () => {

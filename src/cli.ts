@@ -19,7 +19,7 @@ import { join } from 'path';
 program
   .name('src-context')
   .description('A CLI tool for processing and analyzing code context')
-  .version('1.0.0')
+  .version('0.2.0')
   .argument('[paths...]', 'Input paths (files or directories) to process')
   .option('-o, --output <file>', 'Output to a file')
   .option('--clip', 'Copy output to clipboard')

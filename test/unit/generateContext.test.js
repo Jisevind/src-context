@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateContext } from '../../src/index.js';
+import { generateContext } from '../../dist/index.js';
 
 describe('generateContext', () => {
   it('should generate context without token budget', async () => {
