@@ -13,5 +13,7 @@ export default defineConfig({
     
     // Point to a global setup file to run *once* before all tests
     globalSetup: './test/globalSetup.js',
+
+    setupFiles: ['./test/setup-clipboard-mock.js'],
   },
 });
