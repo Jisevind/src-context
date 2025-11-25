@@ -13,7 +13,8 @@
     "dev": "ts-node src/cli.ts",
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
-    "release": "standard-version && npm publish"
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run"
   },
   "keywords": [
     "cli",
@@ -35,8 +36,12 @@
     "strip-comments": "^2.0.1"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.6",
+    "@semantic-release/npm": "^13.1.2",
     "@types/node": "^24.10.0",
-    "standard-version": "^9.5.0",
+    "semantic-release": "^25.0.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "vitest": "^4.0.6"

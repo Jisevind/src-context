@@ -1,5 +1,8 @@
+.claude/
+.localdocs/
 GEMINI.md
 *report.md
+
 
 # Dependencies
 node_modules/
@@ -108,3 +111,8 @@ watch-output.txt
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# Semantic-release (if any temporary files are created)
+.semantic-release/
+semantic-release.log
+semantic-release.tmp
