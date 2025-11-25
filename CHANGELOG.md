@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.1](https://github.com/Jisevind/src-context/compare/v0.2.0...v0.2.1) (2025-11-25)
+
+
+### Bug Fixes
+
+* **cli:** revert version to 0.2.0 and update test imports from dist ([3b5e770](https://github.com/Jisevind/src-context/commit/3b5e770dcf3ad1d99a28d94450742f12d488bd2f))
+
 ## [0.2.0](https://github.com/Jisevind/src-context/compare/v0.1.2...v0.2.0) (2025-11-03)
 
 ### Features
