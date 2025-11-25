@@ -13,7 +13,7 @@ import { BuildStats } from './types.js';
 import clipboardy from 'clipboardy';
 import chokidar from 'chokidar';
 import { asyncDebounce, loadPatternsFromFile } from './utils.js';
-import { join } from 'path';
+import { join, isAbsolute, relative } from 'path';
 
 // Define all CLI options
 program
@@ -40,8 +40,18 @@ program
 program.action(async (paths: string[], options: any) => {
   try {
     // Prepare options for the library functions
+    // Normalize paths to be relative to current working directory for watch mode
+    const normalizedInputPaths = paths && paths.length > 0 ? paths.map(p => {
+      // If the path is absolute, make it relative to cwd
+      if (isAbsolute(p)) {
+        const relativePath = relative(process.cwd(), p);
+        return relativePath || '.';
+      }
+      return p;
+    }) : ['.'];
+    
     const contextOptions = {
-      inputPaths: paths && paths.length > 0 ? paths : ['.'], // Use 'inputPaths' (plural)
+      inputPaths: normalizedInputPaths, // Use normalized paths
       cliIgnores: options.ignore || [],
       customIgnoreFile: options.ignoreFile || '.contextignore',
       removeWhitespace: !options.keepWhitespace,
@@ -129,17 +139,27 @@ program.action(async (paths: string[], options: any) => {
     if (options.watch) {
       console.log('Watch mode enabled. Performing initial build...');
       
+      // Normalize paths to be relative to current working directory for watch mode
+      const normalizedWatchPaths = paths && paths.length > 0 ? paths.map(p => {
+        // If the path is absolute, make it relative to cwd
+        if (isAbsolute(p)) {
+          const relativePath = relative(process.cwd(), p);
+          return relativePath || '.';
+        }
+        return p;
+      }) : ['.'];
+      
       // Run initial build
       await runBuild();
       
       console.log('\nWatching for file changes...');
       
       // Get ignore patterns for chokidar
-      const firstInputPath = (paths && paths.length > 0 ? paths[0] : '.') || '.';
+      const firstInputPath = (normalizedWatchPaths && normalizedWatchPaths.length > 0 ? normalizedWatchPaths[0] : '.') || '.';
       const ignorePatterns = await getIgnorePatterns(firstInputPath);
       
       // Set up chokidar watcher with proper ignore patterns
-      const watcher = chokidar.watch(paths && paths.length > 0 ? paths : ['.'], {
+      const watcher = chokidar.watch(normalizedWatchPaths, {
         ignored: ignorePatterns,
         persistent: true,
         ignoreInitial: true,
