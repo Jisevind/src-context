@@ -1,3 +1,11 @@
+## [0.2.1](https://github.com/Jisevind/src-context/compare/v0.2.0...v0.2.1) (2025-11-26)
+
+
+### Bug Fixes
+
+* **cli:** normalize absolute paths to relative paths ([a49e4f3](https://github.com/Jisevind/src-context/commit/a49e4f303b8363432c6f4c9a3b2208120ae4afdf))
+* **cli:** revert version to 0.2.0 and update test imports from dist ([3b5e770](https://github.com/Jisevind/src-context/commit/3b5e770dcf3ad1d99a28d94450742f12d488bd2f))
+
 # Changelog
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
