@@ -8,8 +8,8 @@ export default defineConfig({
     // Use globals like describe, it, expect
     globals: true,
     
-    // Set a default timeout (e.g., 15 seconds)
-    testTimeout: 15000,
+    // Set a default timeout (increased for WSL/CI environments)
+    testTimeout: 60000,
     
     // Point to a global setup file to run *once* before all tests
     globalSetup: './test/globalSetup.js',

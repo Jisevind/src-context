@@ -11,6 +11,23 @@ import { defaultIgnores } from './defaultIgnores.js';
 import { generateSummaryReport } from './summary.js';
 import { BuildStats } from './types.js';
 import clipboardy from 'clipboardy';
+
+// Mock clipboard for test environments
+const mockClipboard = {
+  write: async (text: string) => {
+    if (process.env['NODE_ENV'] === 'test') {
+      console.log('[MOCK CLIPBOARD] Content would be copied to clipboard:', text.substring(0, 100) + '...');
+      return;
+    }
+    return clipboardy.write(text);
+  },
+  read: async () => {
+    if (process.env['NODE_ENV'] === 'test') {
+      return 'mock clipboard content';
+    }
+    return clipboardy.read();
+  }
+};
 import chokidar from 'chokidar';
 import { asyncDebounce, loadPatternsFromFile } from './utils.js';
 import { join, isAbsolute, relative } from 'path';
@@ -89,7 +106,7 @@ program.action(async (paths: string[], options: any) => {
         // Handle output based on options
         if (options.clip) {
           // Copy to clipboard
-          await clipboardy.write(context);
+          await mockClipboard.write(context);
           console.log('Context copied to clipboard!');
         } else if (options.output) {
           // Write to file

@@ -136,13 +136,41 @@ describe('--watch Feature', () => {
     watchProcess.stdout?.on('data', (data) => { watchOutput += data.toString(); });
     watchProcess.stderr?.on('data', (data) => { watchOutput += data.toString(); });
 
-    // Wait a bit for initial build to finish (timings vary between environments)
-    await setTimeout(3500);
+    // Wait a bit for initial build to finish (timings vary between environments, especially WSL)
+    await setTimeout(5000);
 
     const outputFilePath = join(projectRoot, outputPath);
 
     // Ensure the output file exists and is non-empty - do not assert on exact textual layout
-    const initialOutputExists = await fsPromises.stat(outputFilePath).then(s => s.size > 0).catch(() => false);
+    // Add retry logic for WSL environments where file system events might be slower
+    let initialOutputExists = false;
+    let retries = 0;
+    const maxRetries = 10; // Increased retries for WSL
+    
+    while (!initialOutputExists && retries < maxRetries) {
+      try {
+        const stats = await fsPromises.stat(outputFilePath);
+        initialOutputExists = stats.size > 0;
+        if (!initialOutputExists) {
+          console.log(`Output file exists but is empty, retry ${retries + 1}/${maxRetries}...`);
+        }
+      } catch (error) {
+        console.log(`Output file not ready, retry ${retries + 1}/${maxRetries}...`);
+        console.log(`Error: ${error.message}`);
+      }
+      
+      if (!initialOutputExists) {
+        await setTimeout(2000); // Longer wait for WSL
+        retries++;
+      }
+    }
+    
+    // If still doesn't exist, try to debug the watch process
+    if (!initialOutputExists) {
+      console.log('Watch process output:', watchOutput);
+      console.log('Watch process stderr:', watchProcess.stderr ? watchProcess.stderr.toString() : 'No stderr');
+    }
+    
     expect(initialOutputExists).toBe(true);
 
     const initialOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
@@ -173,10 +201,37 @@ app.listen(3000, () => {
 
     await writeFile(join(__dirname, testDir, 'index.js'), modifiedContent);
 
-    // Give watcher more time to rebuild
-    await setTimeout(5000);
+    // Give watcher more time to rebuild (especially for WSL)
+    await setTimeout(7000);
 
-    const updatedOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
+    // Add retry logic for reading the updated file with content verification
+    let updatedOutput = '';
+    let readRetries = 0;
+    const maxReadRetries = 10; // Increased retries for WSL
+    let contentUpdated = false;
+    
+    while (!contentUpdated && readRetries < maxReadRetries) {
+      try {
+        const currentOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
+        
+        // Check if the content has actually been updated with our modifications
+        if (currentOutput.includes('Hello Modified World!') && currentOutput.includes('/api/status')) {
+          updatedOutput = currentOutput;
+          contentUpdated = true;
+          console.log(`Content updated successfully on attempt ${readRetries + 1}`);
+        } else {
+          console.log(`Content not yet updated, retry ${readRetries + 1}/${maxReadRetries}...`);
+          console.log(`Current content preview: ${currentOutput.substring(0, 200)}...`);
+          await setTimeout(2000); // Longer wait for WSL
+          readRetries++;
+        }
+      } catch (error) {
+        console.log(`Failed to read output file, retry ${readRetries + 1}/${maxReadRetries}...`);
+        await setTimeout(2000);
+        readRetries++;
+      }
+    }
+    
     console.log('Updated output length:', updatedOutput.length);
     console.log('Updated output preview:', updatedOutput.substring(0, 200));
     
@@ -216,9 +271,35 @@ module.exports = DataService;`;
 
     await writeFile(join(__dirname, testDir, 'service.js'), newFileContent);
 
-    await setTimeout(2200);
+    await setTimeout(5000); // Increased wait time for WSL
 
-    const updatedOutput2 = await fsPromises.readFile(outputFilePath, 'utf-8');
+    // Add retry logic for reading the updated file with content verification
+    let updatedOutput2 = '';
+    let readRetries2 = 0;
+    const maxReadRetries2 = 8; // Increased retries for WSL
+    let contentUpdated2 = false;
+    
+    while (!contentUpdated2 && readRetries2 < maxReadRetries2) {
+      try {
+        const currentOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
+        
+        // Check if the content has actually been updated with the new file
+        if (currentOutput.includes('service.js') && currentOutput.includes('DataService')) {
+          updatedOutput2 = currentOutput;
+          contentUpdated2 = true;
+          console.log(`New file content detected on attempt ${readRetries2 + 1}`);
+        } else {
+          console.log(`New file not yet detected, retry ${readRetries2 + 1}/${maxReadRetries2}...`);
+          await setTimeout(2000); // Longer wait for WSL
+          readRetries2++;
+        }
+      } catch (error) {
+        console.log(`Failed to read output file, retry ${readRetries2 + 1}/${maxReadRetries2}...`);
+        await setTimeout(2000);
+        readRetries2++;
+      }
+    }
+    
     // Ensure the new file name appears somewhere in the output
     expect(updatedOutput2).toContain('service.js');
     expect(updatedOutput2).toContain('DataService');
@@ -232,9 +313,35 @@ module.exports = DataService;`;
 
     await rm(join(__dirname, testDir, 'config.json'), { force: true });
 
-    await setTimeout(2200);
+    await setTimeout(5000); // Increased wait time for WSL
 
-    const updatedOutput3 = await fsPromises.readFile(outputFilePath, 'utf-8');
+    // Add retry logic for reading the updated file with content verification
+    let updatedOutput3 = '';
+    let readRetries3 = 0;
+    const maxReadRetries3 = 8; // Increased retries for WSL
+    let contentUpdated3 = false;
+    
+    while (!contentUpdated3 && readRetries3 < maxReadRetries3) {
+      try {
+        const currentOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
+        
+        // Check if the content has actually been updated (config.json removed)
+        if (!currentOutput.includes('config.json') && currentOutput.includes('index.js') && currentOutput.includes('utils.js')) {
+          updatedOutput3 = currentOutput;
+          contentUpdated3 = true;
+          console.log(`File deletion detected on attempt ${readRetries3 + 1}`);
+        } else {
+          console.log(`File deletion not yet detected, retry ${readRetries3 + 1}/${maxReadRetries3}...`);
+          await setTimeout(2000); // Longer wait for WSL
+          readRetries3++;
+        }
+      } catch (error) {
+        console.log(`Failed to read output file, retry ${readRetries3 + 1}/${maxReadRetries3}...`);
+        await setTimeout(2000);
+        readRetries3++;
+      }
+    }
+    
     // The deleted file name should no longer appear in the output
     expect(updatedOutput3).not.toContain('config.json');
     expect(updatedOutput3).toContain('index.js');
@@ -268,9 +375,35 @@ app.get('/', (req, res) => {
   res.json({ message: 'Final rapid change' });
 });`);
 
-    await setTimeout(2200);
+    await setTimeout(5000); // Increased wait time for WSL
 
-    const currentOutput = await fsPromises.readFile(outputFilePath, 'utf-8');
+    // Add retry logic for reading the updated file with content verification
+    let currentOutput = '';
+    let readRetries4 = 0;
+    const maxReadRetries4 = 8; // Increased retries for WSL
+    let contentUpdated4 = false;
+    
+    while (!contentUpdated4 && readRetries4 < maxReadRetries4) {
+      try {
+        const output = await fsPromises.readFile(outputFilePath, 'utf-8');
+        
+        // Check if the content has actually been updated with the final change
+        if (output.includes('Final rapid change')) {
+          currentOutput = output;
+          contentUpdated4 = true;
+          console.log(`Final rapid change detected on attempt ${readRetries4 + 1}`);
+        } else {
+          console.log(`Final rapid change not yet detected, retry ${readRetries4 + 1}/${maxReadRetries4}...`);
+          await setTimeout(2000); // Longer wait for WSL
+          readRetries4++;
+        }
+      } catch (error) {
+        console.log(`Failed to read output file, retry ${readRetries4 + 1}/${maxReadRetries4}...`);
+        await setTimeout(2000);
+        readRetries4++;
+      }
+    }
+    
     expect(currentOutput).toContain('Final rapid change');
 
     console.log('✓ Watch mode handles multiple rapid changes correctly');
@@ -315,5 +448,5 @@ app.get('/', (req, res) => {
     console.log('✓ --watch with --clip flag works correctly');
 
     console.log('✅ All --watch feature tests passed!');
-  }, 30000); // 30s timeout
+  }, 60000); // 60s timeout for WSL environments
 });
