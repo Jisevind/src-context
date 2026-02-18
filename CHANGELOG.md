@@ -1,3 +1,10 @@
+## [0.2.4](https://github.com/Jisevind/src-context/compare/v0.2.3...v0.2.4) (2026-02-18)
+
+
+### Bug Fixes
+
+* retry release after token update ([3ddf25e](https://github.com/Jisevind/src-context/commit/3ddf25e41a526e5cd042f41f71473ad221c3a27c))
+
 ## [0.2.3](https://github.com/Jisevind/src-context/compare/v0.2.2...v0.2.3) (2026-02-18)
 
 
