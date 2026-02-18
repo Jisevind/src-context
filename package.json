@@ -24,6 +24,10 @@
   ],
   "author": "Johan Isevind",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jisevind/src-context.git"
+  },
   "dependencies": {
     "@npmcli/installed-package-contents": "^4.0.0",
     "abbrev": "^4.0.0",
