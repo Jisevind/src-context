@@ -43,11 +43,11 @@ export interface FileProcessingOptions {
 export async function getFileStats(filePath: string, maxFileSizeKB?: number): Promise<FileStats> {
   let fileSizeKB = 0;
   let shouldSkipDueToSize = false;
-  
+
   try {
     const fileStats = await stat(filePath);
     fileSizeKB = fileStats.size / 1024;
-    
+
     // Skip files larger than maxFileSizeKB (default to 1024 if not provided)
     const maxSizeKB = maxFileSizeKB ?? 1024;
     if (fileSizeKB > maxSizeKB) {
@@ -57,7 +57,7 @@ export async function getFileStats(filePath: string, maxFileSizeKB?: number): Pr
   } catch (error) {
     // If we can't stat the file, continue with processing (don't skip)
   }
-  
+
   return {
     sizeKB: fileSizeKB,
     shouldSkip: shouldSkipDueToSize
@@ -73,7 +73,7 @@ export async function getFileStats(filePath: string, maxFileSizeKB?: number): Pr
 export async function isBinaryOrSvgFile(filePath: string, fileSizeKB: number): Promise<{ isBinary: boolean; isSvg: boolean }> {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
   const isSvg = ext === 'svg';
-  
+
   // Use optimized binary detection for large files, regular detection for small files
   let isBinary = false;
   if (fileSizeKB > 100) {
@@ -83,7 +83,7 @@ export async function isBinaryOrSvgFile(filePath: string, fileSizeKB: number): P
     // For smaller files, use regular detection for better accuracy
     isBinary = await isBinaryFile(filePath);
   }
-  
+
   return { isBinary, isSvg };
 }
 
@@ -100,19 +100,19 @@ async function isBinaryFileOptimized(filePath: string, sampleSize: number = DEFA
     try {
       const buffer = Buffer.alloc(sampleSize);
       const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
-      
+
       // Check if we read any data
       if (bytesRead === 0) {
         return false;
       }
-      
+
       // Only check the bytes we actually read
       const sample = buffer.slice(0, bytesRead);
-      
+
       // Simple heuristic: check for null bytes or high percentage of non-printable characters
       let nullBytes = 0;
       let nonPrintable = 0;
-      
+
       for (let i = 0; i < sample.length; i++) {
         const byte = sample[i]!;
         if (byte === 0) {
@@ -122,11 +122,11 @@ async function isBinaryFileOptimized(filePath: string, sampleSize: number = DEFA
           nonPrintable++;
         }
       }
-      
+
       // Consider binary if more than 10% null bytes or more than 30% non-printable characters
       const nullThreshold = sample.length * NULL_BYTE_THRESHOLD_RATIO;
       const nonPrintableThreshold = sample.length * NON_PRINTABLE_THRESHOLD_RATIO;
-      
+
       return nullBytes > nullThreshold || nonPrintable > nonPrintableThreshold;
     } finally {
       await fileHandle.close();
@@ -145,8 +145,8 @@ async function isBinaryFileOptimized(filePath: string, sampleSize: number = DEFA
  * @returns Promise resolving to processed file result
  */
 export async function handleBinaryOrSvgFile(
-  filePath: string, 
-  isSvg: boolean, 
+  filePath: string,
+  isSvg: boolean,
   onBinaryFile?: (path: string) => string
 ): Promise<ProcessedFileResult> {
   // Use custom callback if provided, otherwise use default placeholder
@@ -156,10 +156,10 @@ export async function handleBinaryOrSvgFile(
   } else {
     content = isSvg ? `[Content of SVG file: ${filePath}]` : `[Content of binary file: ${filePath}]`;
   }
-  
+
   const tokenCount = encode(content).length;
   const formattedContent = formatFileContent(filePath, content);
-  
+
   return {
     path: filePath,
     content: formattedContent,
@@ -188,11 +188,11 @@ function processPythonContent(content: string): string {
   const processedLines: string[] = [];
   let inTripleQuotes = false;
   let tripleQuoteType: '"""' | "'''" | null = null;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     const trimmedLine = line.trim();
-    
+
     // Track triple-quoted strings (docstrings)
     if (!inTripleQuotes) {
       // Check for start of triple-quoted string
@@ -200,7 +200,7 @@ function processPythonContent(content: string): string {
         // Handle cases where both start and end are on same line
         const firstTripleQuote = trimmedLine.indexOf('"""');
         const secondTripleQuote = trimmedLine.indexOf('"""', firstTripleQuote + 3);
-        
+
         if (secondTripleQuote !== -1 && firstTripleQuote !== secondTripleQuote) {
           // Both start and end on same line, keep entire line
           processedLines.push(line);
@@ -216,7 +216,7 @@ function processPythonContent(content: string): string {
         // Handle cases where both start and end are on same line
         const firstTripleQuote = trimmedLine.indexOf("'''");
         const secondTripleQuote = trimmedLine.indexOf("'''", firstTripleQuote + 3);
-        
+
         if (secondTripleQuote !== -1 && firstTripleQuote !== secondTripleQuote) {
           // Both start and end on same line, keep entire line
           processedLines.push(line);
@@ -239,7 +239,7 @@ function processPythonContent(content: string): string {
       processedLines.push(line);
       continue;
     }
-    
+
     // Process non-string lines (strip single-line comments)
     if (!inTripleQuotes) {
       // Remove single-line comments that are not inside strings
@@ -248,36 +248,36 @@ function processPythonContent(content: string): string {
       let inSingleQuotes = false;
       let inDoubleQuotes = false;
       let escaped = false;
-      
+
       for (let j = 0; j < line.length; j++) {
         const char = line[j]!;
-        
+
         if (escaped) {
           escaped = false;
           continue;
         }
-        
+
         if (char === '\\') {
           escaped = true;
           continue;
         }
-        
+
         if (char === '"' && !inSingleQuotes) {
           inDoubleQuotes = !inDoubleQuotes;
           continue;
         }
-        
+
         if (char === "'" && !inDoubleQuotes) {
           inSingleQuotes = !inSingleQuotes;
           continue;
         }
-        
+
         if (char === '#' && !inSingleQuotes && !inDoubleQuotes) {
           commentIndex = j;
           break;
         }
       }
-      
+
       if (commentIndex !== -1) {
         // Remove everything from # onwards, but preserve the line for indentation
         const beforeComment = line.substring(0, commentIndex);
@@ -288,7 +288,7 @@ function processPythonContent(content: string): string {
       }
     }
   }
-  
+
   return processedLines.join('\n');
 }
 
@@ -299,16 +299,16 @@ function processPythonContent(content: string): string {
  * @returns Promise resolving to processed file result
  */
 export async function readAndProcessTextFile(
-  filePath: string, 
+  filePath: string,
   options: FileProcessingOptions
 ): Promise<ProcessedFileResult> {
   const { removeWhitespace, stripFileComments, maxFileSizeKB } = options;
-  
+
   // Get file stats to determine processing approach
   const { sizeKB: fileSizeKB } = await getFileStats(filePath, maxFileSizeKB);
-  
+
   let content: string;
-  
+
   // For very large text files (>100KB), use a more efficient approach
   if (fileSizeKB > 100) {
     // Read only first 50KB for large text files to avoid tokenization bottleneck
@@ -318,16 +318,16 @@ export async function readAndProcessTextFile(
       const buffer = Buffer.alloc(sampleSize);
       const { bytesRead } = await fileHandle.read(buffer, 0, sampleSize, 0);
       const sampleContent = buffer.slice(0, bytesRead).toString('utf-8');
-      
+
       // Create content with sample and size note
-      content = `${sampleContent}\n\n[Note: Large file (${fileSizeKB.toFixed(1)}KB) - showing first ${(bytesRead/1024).toFixed(1)}KB]`;
-      
+      content = `${sampleContent}\n\n[Note: Large file (${fileSizeKB.toFixed(1)}KB) - showing first ${(bytesRead / 1024).toFixed(1)}KB]`;
+
       // Estimate token count based on sample (much faster than tokenizing full content)
       const sampleTokenCount = encode(sampleContent).length;
-      const tokenCount = Math.round(sampleTokenCount * (fileSizeKB / (bytesRead/1024)));
-      
+      const tokenCount = Math.round(sampleTokenCount * (fileSizeKB / (bytesRead / 1024)));
+
       const formattedContent = formatFileContent(filePath, content);
-      
+
       return {
         path: filePath,
         content: formattedContent,
@@ -339,12 +339,12 @@ export async function readAndProcessTextFile(
   } else {
     // Read file content for smaller files
     const fileContent = await readFile(filePath, 'utf-8');
-    
+
     let processedContent = fileContent; // Start with original content
 
     // Check if this is a Python file for specialized processing
     const isPythonFile = isPythonFilePath(filePath);
-    
+
     // Strip comments if the flag is true (which will be the default)
     // but only for non-whitespace-sensitive files
     if (stripFileComments && !isWhitespaceSensitive(filePath)) {
@@ -357,21 +357,33 @@ export async function readAndProcessTextFile(
           // Use dynamic import directly
           // @ts-ignore - strip-comments lacks TypeScript declarations
           const { default: strip } = await import('strip-comments');
-          
+
           // Get file extension to determine if HTML comments should be stripped
           const ext = filePath.split('.').pop()?.toLowerCase() || '';
-          
+
+          // Special handling for Go directives: preserve //go:
+          // Mask them as protected comments (//! is preserved by safe: true)
+          // This prevents directives like //go:embed and //go:build from being stripped
+          if (ext === 'go') {
+            processedContent = processedContent.replace(/\/\/go:/g, '//!go:');
+          }
+
           // Define extensions that should have HTML comments stripped
           const htmlCommentExtensions = ['html', 'xml', 'svg', 'jsx', 'tsx'];
-          
+
           // Only strip HTML comments for web/markup file types, not for markdown
           const shouldStripHtmlComments = htmlCommentExtensions.includes(ext);
-          
+
           processedContent = strip(processedContent, {
             stripHtmlComments: shouldStripHtmlComments, // Dynamic based on file type
             preserveNewlines: true,  // Keep blank lines from removed block comments
             safe: true               // Preserve "protected" comments (/*! ... */ and //! ...)
           });
+
+          // Restore Go directives
+          if (ext === 'go') {
+            processedContent = processedContent.replace(/\/\/!go:/g, '//go:');
+          }
         } catch (stripError) {
           console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
           processedContent = fileContent; // Fallback to original content
@@ -386,11 +398,11 @@ export async function readAndProcessTextFile(
     } else {
       content = processedContent; // Use processedContent here
     }
-    
+
     // Count tokens based on the final content
     const tokenCount = encode(content).length; // Use final 'content' variable
     const formattedContent = formatFileContent(filePath, content);
-    
+
     return {
       path: filePath,
       content: formattedContent,
@@ -406,25 +418,25 @@ export async function readAndProcessTextFile(
  * @returns Promise resolving to processed file result
  */
 export async function processMinifiedFile(
-  filePath: string, 
+  filePath: string,
   onMinifyFile?: (path: string) => string
 ): Promise<ProcessedFileResult> {
   // Create placeholder string for minified content
   let placeholderContent: string;
-  
+
   // Use custom callback if provided, otherwise use default placeholder
   if (onMinifyFile) {
     placeholderContent = onMinifyFile(filePath);
   } else {
     placeholderContent = `[Content for ${filePath} has been minified and excluded]`;
   }
-  
+
   // Format the placeholder content
   const formattedPlaceholder = formatFileContent(filePath, placeholderContent);
-  
+
   // Calculate token count for the placeholder
   const tokenCount = encode(formattedPlaceholder).length;
-  
+
   return {
     path: filePath,
     content: formattedPlaceholder,
@@ -447,7 +459,7 @@ export function updateStats(
   // Update total token count and file size
   stats.totalTokenCount = (stats.totalTokenCount || 0) + result.tokenCount;
   stats.totalFileSizeKB = (stats.totalFileSizeKB || 0) + (result.content.length / 1024);
-  
+
   // Update specific counters
   if (isBinary) {
     stats.binaryAndSvgFiles = (stats.binaryAndSvgFiles || 0) + 1;
@@ -463,12 +475,12 @@ export function updateStats(
 export async function handleFileError(filePath: string, error: unknown): Promise<ProcessedFileResult> {
   // Handle file reading errors gracefully
   console.warn(`Warning: Could not process file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
-  
+
   // Use placeholder for files that couldn't be read
   const errorContent = `[Error: Could not read file ${filePath}. ${error instanceof Error ? error.message : String(error)}]`;
   const tokenCount = encode(errorContent).length;
   const formattedContent = formatFileContent(filePath, errorContent);
-  
+
   return {
     path: filePath,
     content: formattedContent,
@@ -484,12 +496,12 @@ export async function handleFileError(filePath: string, error: unknown): Promise
  */
 export function formatFileContent(path: string, content: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
-  
+
   // If content is a placeholder for binary/SVG files
   if (content.startsWith('[Content of binary file:') || content.startsWith('[Content of SVG file:')) {
     return `# ${path}\n\n${content}`;
   }
-  
+
   // Format as Markdown code block with language hint
   return `# ${path}\n\n\`\`\`${ext}\n${content}\n\`\`\``;
 }
@@ -518,7 +530,7 @@ function isWhitespaceSensitive(path: string): boolean {
   if (filename === 'makefile' || filename.endsWith('.mk')) {
     return true;
   }
-  
+
   const ext = path.split('.').pop()?.toLowerCase() || '';
   return whitespaceSensitiveExtensions.includes(ext);
 }
@@ -531,10 +543,10 @@ function isWhitespaceSensitive(path: string): boolean {
 function removeExtraWhitespace(content: string): string {
   // Remove multiple newlines (keep max 2 consecutive newlines)
   content = content.replace(/\n{3,}/g, '\n\n');
-  
+
   // Remove leading/trailing whitespace from each line
   content = content.split('\n').map(line => line.trimEnd()).join('\n');
-  
+
   // Remove leading/trailing whitespace from the entire content
   return content.trim();
 }
