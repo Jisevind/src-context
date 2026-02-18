@@ -118,11 +118,17 @@ export async function gatherFiles(
           nodir: true,
           absolute: false, // Get relative paths from the directory
         });
-        // Add files relative to the input path
-        files.forEach(file => allFilesSet.add(join(inputPath, file)));
+        // Add files relative to the input path, normalizing to POSIX separators
+        files.forEach(file => {
+          const relativeFile = join(inputPath, file);
+          const normalizedFile = relativeFile.replace(/\\/g, '/');
+          allFilesSet.add(normalizedFile);
+        });
       } else if (pathStats.isFile()) {
         // Add the file path as-is (it should already be relative to CWD or absolute)
-        allFilesSet.add(inputPath);
+        // Normalize to POSIX separators
+        const normalizedInputPath = inputPath.replace(/\\/g, '/');
+        allFilesSet.add(normalizedInputPath);
       }
     } catch (error) {
       console.warn(`Warning: Could not process path ${inputPath}: ${error instanceof Error ? error.message : String(error)}`);
@@ -152,17 +158,26 @@ export async function gatherFiles(
     // Extract the relative path from the input path for ignore matching
     let relativePathForIgnore = file;
     for (const inputPath of inputPaths) {
+      // Normalize inputPath to ensure consistent separators (forward slashes)
+      const normalizedInputPath = inputPath.replace(/\\/g, '/');
+
+      if (file.startsWith(normalizedInputPath)) {
+        relativePathForIgnore = file.slice(normalizedInputPath.length).replace(/^[\/\\]/, '');
+        break;
+      }
+
+      // Fallback for cases where inputPath might already match (e.g. if file wasn't normalized)
       if (file.startsWith(inputPath)) {
         relativePathForIgnore = file.slice(inputPath.length).replace(/^[\/\\]/, '');
         break;
       }
     }
-    
+
     // Ensure we don't pass empty paths to the ignore library
     if (!relativePathForIgnore) {
       relativePathForIgnore = file;
     }
-    
+
     // Normalize path to use POSIX-style forward slashes for ignore library
     relativePathForIgnore = relativePathForIgnore.replace(/\\/g, '/');
 
@@ -177,7 +192,7 @@ export async function gatherFiles(
       // Determine which pattern type caused the ignore by checking individual instances
       // Check in order of precedence: CLI > Custom > Default
       let ignoredByType = 'default';
-      
+
       if (cliIgnorePatterns.length > 0 && cliIgnore.ignores(relativePathForIgnore)) {
         ignoredByType = 'cli';
       } else if (customPatterns.length > 0 && customIgnore.ignores(relativePathForIgnore)) {
@@ -185,7 +200,7 @@ export async function gatherFiles(
       } else if (defaultIgnore.ignores(relativePathForIgnore)) {
         ignoredByType = 'default';
       }
-      
+
       // Increment the appropriate counter
       if (ignoredByType === 'cli') {
         ignoredByCli++;
@@ -220,12 +235,12 @@ export async function gatherFiles(
  */
 export function formatFileContent(path: string, content: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
-  
+
   // If content is a placeholder for binary/SVG files
   if (content.startsWith('[Content of binary file:') || content.startsWith('[Content of SVG file:')) {
     return `# ${path}\n\n${content}`;
   }
-  
+
   // Format as Markdown code block with language hint
   return `# ${path}\n\n\`\`\`${ext}\n${content}\n\`\`\``;
 }
@@ -251,7 +266,7 @@ export async function processFiles(
   stripFileComments: boolean = true
 ): Promise<{ processedFiles: Array<{ path: string, content: string, tokenCount: number }>, stats: Partial<BuildStats> }> {
   const results: Array<{ path: string, content: string, tokenCount: number }> = [];
-  
+
   // Initialize stats with input stats or create new ones
   const stats: Partial<BuildStats> = inputStats ? { ...inputStats } : {
     totalFilesFound: 0,
@@ -267,19 +282,19 @@ export async function processFiles(
     totalFileSizeKB: 0,
     topTokenConsumers: []
   };
-  
+
   // Process files to include (normal processing)
   for (const filePath of files.filesToInclude) {
     try {
       const fileStats = await getFileStats(filePath, maxFileSizeKB);
-      
+
       if (fileStats.shouldSkip) {
         stats.skippedLargeFiles = (stats.skippedLargeFiles || 0) + 1;
         continue;
       }
-      
+
       const { isBinary, isSvg } = await isBinaryOrSvgFile(filePath, fileStats.sizeKB);
-      
+
       let result;
       if (isBinary || isSvg) {
         result = await handleBinaryOrSvgFile(filePath, isSvg, onBinaryFile);
@@ -292,7 +307,7 @@ export async function processFiles(
         });
         updateStats(stats, result, false);
       }
-      
+
       results.push(result);
     } catch (error) {
       const errorResult = await handleFileError(filePath, error);
@@ -300,7 +315,7 @@ export async function processFiles(
       updateStats(stats, errorResult, false);
     }
   }
-  
+
   // Process files to minify (create placeholders)
   for (const filePath of files.filesToMinify) {
     try {
@@ -313,13 +328,13 @@ export async function processFiles(
       updateStats(stats, errorResult, false);
     }
   }
-  
+
   // Find top 3 token consumers
   const sortedResults = results.sort((a, b) => b.tokenCount - a.tokenCount);
   stats.topTokenConsumers = sortedResults.slice(0, 3).map(result => ({
     path: result.path,
     tokenCount: result.tokenCount
   }));
-  
+
   return { processedFiles: results, stats };
 }
