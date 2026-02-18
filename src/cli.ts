@@ -10,6 +10,9 @@ import { generateContext, getFileStats } from './index.js';
 import { defaultIgnores } from './defaultIgnores.js';
 import { generateSummaryReport } from './summary.js';
 import { BuildStats } from './types.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 import clipboardy from 'clipboardy';
 
 // Mock clipboard for test environments
@@ -36,7 +39,7 @@ import { join, isAbsolute, relative } from 'path';
 program
   .name('src-context')
   .description('A CLI tool for processing and analyzing code context')
-  .version('0.2.0')
+  .version(pkg.version)
   .argument('[paths...]', 'Input paths (files or directories) to process')
   .option('-o, --output <file>', 'Output to a file')
   .option('--clip', 'Copy output to clipboard')
@@ -66,7 +69,7 @@ program.action(async (paths: string[], options: any) => {
       }
       return p;
     }) : ['.'];
-    
+
     const contextOptions = {
       inputPaths: normalizedInputPaths, // Use normalized paths
       cliIgnores: options.ignore || [],
@@ -82,21 +85,21 @@ program.action(async (paths: string[], options: any) => {
     // Create the runBuild function that contains all the build logic
     async function runBuild(): Promise<void> {
       let stats: BuildStats;
-      
+
       // If --show-tokens is used
       if (options.showTokens) {
         const { files: fileStats, stats: fileStatsStats } = await getFileStats(contextOptions);
         stats = fileStatsStats;
-        
+
         // Log a formatted table to the console showing "File" and "Token Count"
         console.log('\nFile Statistics (sorted by token count - descending):\n');
         console.log('File'.padEnd(60) + 'Token Count');
         console.log('-'.repeat(70));
-        
+
         fileStats.forEach((stat) => {
           console.log(stat.path.padEnd(60) + stat.tokenCount.toString());
         });
-        
+
         console.log('\nTotal files:', fileStats.length);
       } else {
         // If --show-tokens is NOT used, generate context
@@ -118,7 +121,7 @@ program.action(async (paths: string[], options: any) => {
           console.log(context);
         }
       }
-      
+
       // Generate and print summary report at the very end
       const summaryReport = generateSummaryReport(stats);
       console.log(summaryReport);
@@ -144,7 +147,7 @@ program.action(async (paths: string[], options: any) => {
       // Try to load custom ignore file
       const customIgnorePath = join(basePath, options.ignoreFile || '.contextignore');
       const customPatterns = await loadPatternsFromFile(customIgnorePath);
-      
+
       if (customPatterns.length > 0) {
         patterns.push(...customPatterns);
       }
@@ -155,7 +158,7 @@ program.action(async (paths: string[], options: any) => {
     // Handle watch mode if enabled
     if (options.watch) {
       console.log('Watch mode enabled. Performing initial build...');
-      
+
       // Normalize paths to be relative to current working directory for watch mode
       const normalizedWatchPaths = paths && paths.length > 0 ? paths.map(p => {
         // If the path is absolute, make it relative to cwd
@@ -165,16 +168,16 @@ program.action(async (paths: string[], options: any) => {
         }
         return p;
       }) : ['.'];
-      
+
       // Run initial build
       await runBuild();
-      
+
       console.log('\nWatching for file changes...');
-      
+
       // Get ignore patterns for chokidar
       const firstInputPath = (normalizedWatchPaths && normalizedWatchPaths.length > 0 ? normalizedWatchPaths[0] : '.') || '.';
       const ignorePatterns = await getIgnorePatterns(firstInputPath);
-      
+
       // Set up chokidar watcher with proper ignore patterns
       const watcher = chokidar.watch(normalizedWatchPaths, {
         ignored: ignorePatterns,
