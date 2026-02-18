@@ -1,3 +1,11 @@
+## [0.2.2](https://github.com/Jisevind/src-context/compare/v0.2.1...v0.2.2) (2026-02-18)
+
+
+### Bug Fixes
+
+* **core:** normalize file paths to use posix separators ([e712d89](https://github.com/Jisevind/src-context/commit/e712d89237664b3ff2ff15dc5e9c02270864357a))
+* **processors:** preserve go directives when stripping comments ([8a6fce0](https://github.com/Jisevind/src-context/commit/8a6fce05d939c25fa0e0fb00f45e32debc9b88e1))
+
 ## [0.2.1](https://github.com/Jisevind/src-context/compare/v0.2.0...v0.2.1) (2025-11-26)
 
 
