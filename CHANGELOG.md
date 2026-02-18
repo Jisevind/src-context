@@ -1,3 +1,10 @@
+## [0.2.6](https://github.com/Jisevind/src-context/compare/v0.2.5...v0.2.6) (2026-02-18)
+
+
+### Bug Fixes
+
+* **fileProcessors:** preserve URLs when stripping comments ([4312a61](https://github.com/Jisevind/src-context/commit/4312a61a00d53b6c3b292804fd54a195fe7e0b83))
+
 ## [0.2.5](https://github.com/Jisevind/src-context/compare/v0.2.4...v0.2.5) (2026-02-18)
 
 
