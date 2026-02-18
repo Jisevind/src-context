@@ -361,9 +361,18 @@ export async function readAndProcessTextFile(
           // Get file extension to determine if HTML comments should be stripped
           const ext = filePath.split('.').pop()?.toLowerCase() || '';
 
-          // Special handling for Go directives: preserve //go:
+          // Special handling for URLs and Go directives
           // Mask them as protected comments (//! is preserved by safe: true)
-          // This prevents directives like //go:embed and //go:build from being stripped
+
+          // 1. Protect URLs (http://, https://, etc.)
+          // We replace '://' with '://!' to make it look like a protected comment start if it were at the beginning of a line, 
+          // but effectively we just need to break the '//' pattern. 
+          // Actually, strip-comments preserves `//!` so we can replace `://` with `__URL_PROTOCOL__` or something safer.
+          // Let's use a unique placeholder that won't be stripped.
+          const URL_PROTOCOL_PLACEHOLDER = '___URL_PROTOCOL_SLASHES___';
+          processedContent = processedContent.replace(/:\/\//g, URL_PROTOCOL_PLACEHOLDER);
+
+          // 2. Protect Go directives
           if (ext === 'go') {
             processedContent = processedContent.replace(/\/\/go:/g, '//!go:');
           }
@@ -384,6 +393,9 @@ export async function readAndProcessTextFile(
           if (ext === 'go') {
             processedContent = processedContent.replace(/\/\/!go:/g, '//go:');
           }
+
+          // Restore URLs
+          processedContent = processedContent.replace(new RegExp(URL_PROTOCOL_PLACEHOLDER, 'g'), '://');
         } catch (stripError) {
           console.warn(`Warning: Could not load or run strip-comments on ${filePath}. Comments will be kept. Error: ${stripError instanceof Error ? stripError.message : String(stripError)}`);
           processedContent = fileContent; // Fallback to original content
