@@ -1,8 +1,14 @@
 .claude/
 .localdocs/
+tmp/
+
 GEMINI.md
+CODEBASE.md
 *report.md
 
+.contextignore
+.contextminify
+.contextpriority
 
 # Dependencies
 node_modules/
