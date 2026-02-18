@@ -1,3 +1,10 @@
+## [0.2.5](https://github.com/Jisevind/src-context/compare/v0.2.4...v0.2.5) (2026-02-18)
+
+
+### Bug Fixes
+
+* **cli:** read version from package.json ([8185ed9](https://github.com/Jisevind/src-context/commit/8185ed94916ffaa26a65babca4ed1d262e1c9d1c))
+
 ## [0.2.4](https://github.com/Jisevind/src-context/compare/v0.2.3...v0.2.4) (2026-02-18)
 
 
