@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node ./node_modules/typescript/bin/tsc",
     "start": "npm run build && node dist/cli.js",
-    "dev": "ts-node src/cli.ts",
+    "dev": "tsx src/cli.ts",
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
     "release": "semantic-release",
@@ -47,6 +47,7 @@
     "@types/node": "^24.10.0",
     "semantic-release": "^25.0.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.6"
   }
